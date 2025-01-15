@@ -129,7 +129,8 @@ term.onData(e => {
 })
 
 sval.run(`
-import Airplane from 'https://raw.githubusercontent.com/DaveEveritt/js-module-example/master/airplane.js'
+import Airplane from 'https://raw.githubusercontent.com/belteshazzar/micro-mongo-web-console/refs/heads/belteshazzar/dev/examples/airplane.js'
+import Chained from 'https://raw.githubusercontent.com/belteshazzar/micro-mongo-web-console/refs/heads/belteshazzar/dev/examples/chained.js'
 
 Airplane.availableAirplanes.forEach( a => {
   console.log(a.name + " " + a.fuelCapacity);
@@ -139,6 +140,8 @@ function x() {
   return 4;
 }
 console.log(x());
+
+console.log(Chained);
 
 // function main() {
 //   return new Promise( resolve => {
