@@ -35,7 +35,7 @@ import {Parser as acorn} from 'acorn';
     get MethodDefinition () { return MethodDefinition$1; },
     get PropertyDefinition () { return PropertyDefinition$1; },
     get StaticBlock () { return StaticBlock$1; },
-    get ImportDeclaration () { return ImportDeclaration$1; },
+    // get ImportDeclaration () { return ImportDeclaration$1; },
     get ExportDefaultDeclaration () { return ExportDefaultDeclaration$1; },
     get ExportNamedDeclaration () { return ExportNamedDeclaration$1; },
     get ExportAllDeclaration () { return ExportAllDeclaration$1; }
@@ -73,7 +73,7 @@ import {Parser as acorn} from 'acorn';
     get MethodDefinition () { return MethodDefinition; },
     get PropertyDefinition () { return PropertyDefinition; },
     get StaticBlock () { return StaticBlock; },
-    get ImportDeclaration () { return ImportDeclaration; },
+    // get ImportDeclaration () { return ImportDeclaration; },
     get ExportDefaultDeclaration () { return ExportDefaultDeclaration; },
     get ExportNamedDeclaration () { return ExportNamedDeclaration; },
     get ExportAllDeclaration () { return ExportAllDeclaration; }
@@ -139,20 +139,7 @@ import {Parser as acorn} from 'acorn';
       return target;
   }
   var assign = Object.assign || _assign;
-  var names = [];
-//   var win = create({});
-//   for (var i = 0; i < names.length; i++) {
-//       var name_1 = names[i];
-//       try {
-//           win[name_1] = globalObj[name_1];
-//       }
-//       catch (err) { }
-//   }
-//   var WINDOW = createSymbol('window');
-//   function createSandBox() {
-//       var _a;
-//       return {}//assign(create((_a = {}, _a[WINDOW] = globalObj, _a)), win);
-//   }
+
   function createSymbol(key) {
       return key + Math.random().toString(36).substring(2);
   }
@@ -192,8 +179,8 @@ import {Parser as acorn} from 'acorn';
   var PRIVATE = createSymbol('private');
   var NOINIT = createSymbol('noinit');
   var DEADZONE = createSymbol('deadzone');
-  var IMPORT = createSymbol('import');
-  var EXPORTS = createSymbol('exports');
+//   var IMPORT = createSymbol('imports');
+  var EXPORTS = 'exports'//createSymbol('exports');
 
   var version = "0.5.6";
 
@@ -241,6 +228,9 @@ import {Parser as acorn} from 'acorn';
           this.withContext = create(null);
           this.parent = parent;
           this.isolated = isolated;
+          this[EXPORTS] = {} //.const(sourceType === 'module' ? EXPORTS : 'exports',{});
+        //   this[IMPORTS] = {}
+
       }
       Scope.prototype.global = function () {
           var scope = this;
@@ -832,7 +822,7 @@ import {Parser as acorn} from 'acorn';
                   }
               }
               if (typeof func !== 'function') {
-                  throw new TypeError(name_1 + " is not a function");
+                  throw new TypeErrorawait (name_1 + " is not a function");
               }
               else {
                   throw new TypeError("Class constructor " + name_1 + " cannot be invoked without 'new'");
@@ -986,7 +976,6 @@ import {Parser as acorn} from 'acorn';
       var source = evaluate$1(node.source, scope);
       var module = globalScope.find(IMPORT + source);
       console.log(source,module)
-      return null;
       var value;
       if (module) {
           var result = module.get();
@@ -1032,7 +1021,33 @@ import {Parser as acorn} from 'acorn';
     ChainExpression: ChainExpression$1,
     ImportExpression: ImportExpression$1
   });
-
+  var import_expression$1 = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    ThisExpression: ThisExpression$1,
+    ArrayExpression: ArrayExpression$1,
+    ObjectExpression: ObjectExpression$1,
+    FunctionExpression: FunctionExpression$1,
+    UnaryExpression: UnaryExpression$1,
+    UpdateExpression: UpdateExpression$1,
+    BinaryExpression: BinaryExpression$1,
+    AssignmentExpression: AssignmentExpression$1,
+    LogicalExpression: LogicalExpression$1,
+    MemberExpression: MemberExpression$1,
+    ConditionalExpression: ConditionalExpression$1,
+    CallExpression: CallExpression$1,
+    NewExpression: NewExpression$1,
+    MetaProperty: MetaProperty$1,
+    SequenceExpression: SequenceExpression$1,
+    ArrowFunctionExpression: ArrowFunctionExpression$1,
+    TemplateLiteral: TemplateLiteral$1,
+    TaggedTemplateExpression: TaggedTemplateExpression$1,
+    TemplateElement: TemplateElement$1,
+    ClassExpression: ClassExpression$1,
+    Super: Super$1,
+    SpreadElement: SpreadElement$1,
+    ChainExpression: ChainExpression$1,
+    ImportExpression: ImportExpression$1
+  });
   function ObjectPattern$1(node, scope, options) {
       if (options === void 0) { options = {}; }
       var _a = options.kind, kind = _a === void 0 ? 'var' : _a, _b = options.hoist, hoist = _b === void 0 ? false : _b, _c = options.onlyBlock, onlyBlock = _c === void 0 ? false : _c, _d = options.feed, feed = _d === void 0 ? {} : _d;
@@ -1201,10 +1216,37 @@ import {Parser as acorn} from 'acorn';
           return handler(node, scope);
       }
       else {
-          throw new Error(node.type + " isn't implemented");
+          console.warn(node.type + " isn't implemented during eval");
       }
   }
 
+  function import_Program(program, scope) {
+    let result = null;
+    for (var i = 0; i < program.body.length; i++) {
+        result = import_evaluate$1(program.body[i], scope);
+    }
+    return result;
+  }
+
+  var import_evaluateHandlers$1;
+  function import_evaluate$1(node, scope) {
+      if (!node)
+          return;
+      if (!import_evaluateHandlers$1) {
+        import_evaluateHandlers$1 = {
+            Program: import_Program,
+            ImportDeclaration: ImportDeclaration$1,
+        }
+      }
+      var handler = import_evaluateHandlers$1[node.type];
+      if (handler) {
+          return handler(node, scope);
+      }
+      else {
+          console.warn(node.type + " isn't implemented during import");
+      }
+  }
+  
   function ExpressionStatement$1(node, scope) {
       return evaluate$1(node.expression, scope);
   }
@@ -1689,53 +1731,45 @@ import {Parser as acorn} from 'acorn';
       subScope.const('this', klass);
       return BlockStatement$1(node, subScope, { invasived: true });
   }
-  async function ImportDeclaration$1(node, scope) {
-      var globalScope = scope.global();
-      const url = node.source.value;
-      let response = await fetch(url)
-      let code = await response.text()
-      var ast = acorn.parse(code,{ ecmaVersion : 2020, sourceType: 'module' });
-    //   hoist(ast, globalScope);
-      const moduleScope = new Scope()
-      evaluate$1(ast, moduleScope);
-      console.log(moduleScope);
-      var value;
 
-    //   var module = globalScope.find(IMPORT + node.source.value);
-    //   var value;
-    //   if (module) {
-    //       var result = module.get();
-    //       if (result) {
-    //           if (typeof result === 'function') {
-    //               value = result();
-    //           }
-    //           else if (typeof result === 'object') {
-    //               value = result;
-    //           }
-    //       }
-    //   }
-      if (!value || typeof value !== 'object') {
-          throw new TypeError("Failed to resolve module specifier \"" + node.source.value + "\"");
-      }
-      for (var i = 0; i < node.specifiers.length; i++) {
-          var spec = node.specifiers[i];
-          var name_2 = void 0;
-          if (spec.type === 'ImportSpecifier') {
-              name_2 = spec.imported.type === 'Identifier'
-                  ? spec.imported.name : spec.imported.value;
-          }
-          else if (spec.type === 'ImportDefaultSpecifier') {
-              name_2 = 'default';
-          }
-          else if (spec.type === 'ImportNamespaceSpecifier') {
-              name_2 = '*';
-          }
-          if (name_2 !== '*' && !hasOwn(value, name_2)) {
-              throw new SyntaxError("The requested module \"" + node.source.value + "\" does not provide an export named \"" + name_2 + "\"");
-          }
-          scope.var(spec.local.name, name_2 === '*' ? assign({}, value) : value[name_2]);
-      }
+  let importPromises = []
+
+  function ImportDeclaration$1(node, scope) {
+
+    const globalScope = scope.global();
+    const url = node.source.value
+    importPromises.push(fetch(url).then(r => r.text()).then((src) => {
+        var ast = acorn.parse(src,{ ecmaVersion : 2020, sourceType: 'module' });
+        const moduleScope = new Scope(null, true);
+        const globalThis = globalScope.find("this").value
+        moduleScope.let('this', Object.create(globalThis.prototype));
+        moduleScope.url = url
+        evaluate$1(ast, moduleScope);
+        const exports = moduleScope[EXPORTS]
+
+        for (var i = 0; i < node.specifiers.length; i++) {
+            var spec = node.specifiers[i];
+            var name_2 = void 0;
+            if (spec.type === 'ImportSpecifier') {
+                name_2 = spec.imported.type === 'Identifier'
+                    ? spec.imported.name : spec.imported.value;
+            }
+            else if (spec.type === 'ImportDefaultSpecifier') {
+                name_2 = 'default';
+            }
+            else if (spec.type === 'ImportNamespaceSpecifier') {
+                name_2 = '*';
+            }
+            if (name_2 !== '*' && !hasOwn(exports, name_2)) {
+                throw new SyntaxError("The requested module \"" + node.source.value + "\" does not provide an export named \"" + name_2 + "\"");
+            }
+            scope.var(spec.local.name, name_2 === '*' ? assign({}, exports) : exports[name_2]);
+        }
+
+        console.log('import done, scope now: ',scope)
+    }))
   }
+
   function ExportDefaultDeclaration$1(node, scope) {
       var globalScope = scope.global();
       var value;
@@ -1750,13 +1784,7 @@ import {Parser as acorn} from 'acorn';
       else {
           value = evaluate$1(node.declaration, scope);
       }
-      var variable = globalScope.find(EXPORTS);
-      if (variable) {
-          var exports_1 = variable.get();
-          if (exports_1 && typeof exports_1 === 'object') {
-              exports_1.default = value;
-          }
-      }
+      globalScope[EXPORTS].default = value;
   }
   function ExportNamedDeclaration$1(node, scope) {
       var globalScope = scope.global();
@@ -1764,59 +1792,35 @@ import {Parser as acorn} from 'acorn';
           if (node.declaration.type === 'FunctionDeclaration') {
               var value = createFunc(node.declaration, scope);
               scope.func(node.declaration.id.name, value);
-              var variable = globalScope.find(EXPORTS);
-              if (variable) {
-                  var exports_2 = variable.get();
-                  if (exports_2 && typeof exports_2 === 'object') {
-                      exports_2[node.declaration.id.name] = value;
-                  }
-              }
+              globalScope[EXPORTS][node.declaration.id.name] = value;
           }
           else if (node.declaration.type === 'ClassDeclaration') {
               var value = createClass(node.declaration, scope);
               scope.func(node.declaration.id.name, value);
-              var variable = globalScope.find(EXPORTS);
-              if (variable) {
-                  var exports_3 = variable.get();
-                  if (exports_3 && typeof exports_3 === 'object') {
-                      exports_3[node.declaration.id.name] = value;
-                  }
-              }
+              globalScope[EXPORTS][node.declaration.id.name] = value;
           }
           else if (node.declaration.type === 'VariableDeclaration') {
               VariableDeclaration$1(node.declaration, scope);
-              var variable = globalScope.find(EXPORTS);
-              if (variable) {
-                  var exports_4 = variable.get();
-                  if (exports_4 && typeof exports_4 === 'object') {
                       for (var i = 0; i < node.declaration.declarations.length; i++) {
                           var name_3 = node.declaration.declarations[i].id.name;
                           var item = scope.find(name_3);
                           if (item) {
-                              exports_4[name_3] = item.get();
+                            globalScope[EXPORTS][name_3] = item.get();
                           }
                       }
-                  }
-              }
           }
       }
       else if (node.specifiers) {
-          var variable = globalScope.find(EXPORTS);
-          if (variable) {
-              var exports_5 = variable.get();
-              if (exports_5 && typeof exports_5 === 'object') {
                   for (var i = 0; i < node.specifiers.length; i++) {
                       var spec = node.specifiers[i];
                       var name_4 = spec.local.type === 'Identifier'
                           ? spec.local.name : spec.local.value;
                       var item = scope.find(name_4);
                       if (item) {
-                          exports_5[spec.exported.type === 'Identifier'
+                        globalScope[EXPORTS][spec.exported.type === 'Identifier'
                               ? spec.exported.name : spec.exported.value] = item.get();
                       }
                   }
-              }
-          }
       }
   }
   function ExportAllDeclaration$1(node, scope) {
@@ -1837,13 +1841,7 @@ import {Parser as acorn} from 'acorn';
       if (!value || typeof value !== 'object') {
           throw new TypeError("Failed to resolve module specifier \"" + node.source.value + "\"");
       }
-      var variable = globalScope.find(EXPORTS);
-      if (variable) {
-          var exports_6 = variable.get();
-          if (exports_6 && typeof exports_6 === 'object') {
-              assign(exports_6, value);
-          }
-      }
+      assign(globalScope[EXPORTS], value);
   }
 
   function Identifier(node, scope, options) {
@@ -3935,13 +3933,7 @@ import {Parser as acorn} from 'acorn';
                   value = _a.sent();
                   _a.label = 5;
               case 5:
-                  variable = globalScope.find(EXPORTS);
-                  if (variable) {
-                      exports_1 = variable.get();
-                      if (exports_1 && typeof exports_1 === 'object') {
-                          exports_1.default = value;
-                      }
-                  }
+                  globalScope[EXPORTS].default = value;
                   return [2];
           }
       });
@@ -3956,13 +3948,7 @@ import {Parser as acorn} from 'acorn';
                   if (!(node.declaration.type === 'FunctionDeclaration')) return [3, 1];
                   value = createFunc$1(node.declaration, scope);
                   scope.func(node.declaration.id.name, value);
-                  variable = globalScope.find(EXPORTS);
-                  if (variable) {
-                      exports_2 = variable.get();
-                      if (exports_2 && typeof exports_2 === 'object') {
-                          exports_2[node.declaration.id.name] = value;
-                      }
-                  }
+                  globalScope[EXPORTS][node.declaration.id.name] = value;
                   return [3, 5];
               case 1:
                   if (!(node.declaration.type === 'ClassDeclaration')) return [3, 3];
@@ -3970,52 +3956,34 @@ import {Parser as acorn} from 'acorn';
               case 2:
                   value = _a.sent();
                   scope.func(node.declaration.id.name, value);
-                  variable = globalScope.find(EXPORTS);
-                  if (variable) {
-                      exports_3 = variable.get();
-                      if (exports_3 && typeof exports_3 === 'object') {
-                          exports_3[node.declaration.id.name] = value;
-                      }
-                  }
+                  globalScope[EXPORTS][node.declaration.id.name] = value;
                   return [3, 5];
               case 3:
                   if (!(node.declaration.type === 'VariableDeclaration')) return [3, 5];
                   return [5, __values(VariableDeclaration(node.declaration, scope))];
               case 4:
                   _a.sent();
-                  variable = globalScope.find(EXPORTS);
-                  if (variable) {
-                      exports_4 = variable.get();
-                      if (exports_4 && typeof exports_4 === 'object') {
                           for (i = 0; i < node.declaration.declarations.length; i++) {
                               name_3 = node.declaration.declarations[i].id.name;
                               item = scope.find(name_3);
                               if (item) {
-                                  exports_4[name_3] = item.get();
+                                globalScope[EXPORTS][name_3] = item.get();
                               }
                           }
-                      }
-                  }
                   _a.label = 5;
               case 5: return [3, 7];
               case 6:
                   if (node.specifiers) {
-                      variable = globalScope.find(EXPORTS);
-                      if (variable) {
-                          exports_5 = variable.get();
-                          if (exports_5 && typeof exports_5 === 'object') {
                               for (i = 0; i < node.specifiers.length; i++) {
                                   spec = node.specifiers[i];
                                   name_4 = spec.local.type === 'Identifier'
                                       ? spec.local.name : spec.local.value;
                                   item = scope.find(name_4);
                                   if (item) {
-                                      exports_5[spec.exported.type === 'Identifier'
+                                    globalScope[EXPORTS][spec.exported.type === 'Identifier'
                                           ? spec.exported.name : spec.exported.value] = item.get();
                                   }
                               }
-                          }
-                      }
                   }
                   _a.label = 7;
               case 7: return [2];
@@ -4041,13 +4009,7 @@ import {Parser as acorn} from 'acorn';
           if (!value || typeof value !== 'object') {
               throw new TypeError("Failed to resolve module specifier \"" + node.source.value + "\"");
           }
-          variable = globalScope.find(EXPORTS);
-          if (variable) {
-              exports_6 = variable.get();
-              if (exports_6 && typeof exports_6 === 'object') {
-                  assign(exports_6, value);
-              }
-          }
+          assign(globalScope[EXPORTS], value);
           return [2];
       });
   }
@@ -4784,7 +4746,8 @@ import {Parser as acorn} from 'acorn';
           if (options === void 0) { options = {}; }
           this.options = { ecmaVersion: 'latest' };
           this.scope = new Scope(null, true);
-          this.exports = {};
+          this.scope.url = "global"
+        //   this.exports = {};
           var _a = options.ecmaVer, ecmaVer = _a === void 0 ? 'latest' : _a, _b = options.sandBox, sandBox = _b === void 0 ? true : _b, _c = options.sourceType, sourceType = _c === void 0 ? 'script' : _c;
           if (typeof ecmaVer === 'number') {
               ecmaVer -= ecmaVer < 2015 ? 0 : 2009;
@@ -4794,7 +4757,10 @@ import {Parser as acorn} from 'acorn';
           }
           this.options.ecmaVersion = ecmaVer;
           this.options.sourceType = sourceType;
-          this.options.globalObject = options.globalObject || {};
+          const globalThisPrototype = options.globalObject || {};
+          this.options.globalObject = Object.create(globalThisPrototype);
+          this.options.globalObject.prototype = globalThisPrototype
+
         //   if (sandBox) {
         //       var win = createSandBox();
         //       this.scope.let('globalThis', win);
@@ -4805,8 +4771,8 @@ import {Parser as acorn} from 'acorn';
             //   this.scope.let('globalThis', this.options.globalObject);
             //   this.scope.let('window', this.options.globalObject);
               this.scope.let('this', this.options.globalObject);
+
         //   }
-          this.scope.const(sourceType === 'module' ? EXPORTS : 'exports', this.exports = {});
       }
     //   Sval.prototype.import = function (nameOrModules, mod) {
     //       var _a;
@@ -4828,9 +4794,14 @@ import {Parser as acorn} from 'acorn';
           }
           return acorn.parse(code, this.options);
       };
-      Sval.prototype.run = function (code) {
+      Sval.prototype.run = async function (code) {
           var ast = typeof code === 'string' ? acorn.parse(code, this.options) : code;
           hoist(ast, this.scope);
+          console.log(ast)
+          console.log('imports')
+          import_evaluate$1(ast,this.scope);
+          await Promise.all(importPromises)
+          console.log('imports done')
           return evaluate$1(ast, this.scope);
       };
       Sval.version = version;

@@ -4,9 +4,10 @@ import { Terminal } from '@xterm/xterm/lib/xterm.js'
 import { FitAddon } from '@xterm/addon-fit';
 import Sval from './sval.js';
 import util from 'node-inspect-extracted'
-import Global from './global.js'
+import global from './global.js'
 
-const globalObj = new Global()
+const globalPrototype = global()
+
 // https://developer.mozilla.org/en-US/docs/Web/API/console/log_static
 // https://developer.mozilla.org/en-US/docs/Web/API/console#using_string_substitutions
 
@@ -17,25 +18,25 @@ function util_inspect(o) {
     .replaceAll("\n","\n\r");
 }
 
+globalPrototype.console = console;
+// globalObj.console = {
+//   assert: window.console.assert,
+//   debug: window.console.debug,
+//   error: window.console.error,
+//   log: function(m) {
+//     term.write(util_inspect(m));
+//     term.write("\n\r")
+//   }
+// }
+globalPrototype.db = {
 
-globalObj.console = {
-  assert: window.console.assert,
-  debug: window.console.debug,
-  error: window.console.error,
-  log: function(m) {
-    term.write(util_inspect(m));
-    term.write("\n\r")
-  }
 }
-globalObj.db = {
-
-}
-globalObj.fs = {
+globalPrototype.fs = {
   ls: function() {
     term.write("example.js\n\r")
   }
 }
-globalObj.help = function() {
+globalPrototype.help = function() {
   term.write("JavaScript terminal in the Browser");
   term.write("\n\r")
 }
@@ -43,15 +44,11 @@ globalObj.help = function() {
 const sval = new Sval({
   ecmaVer: 'latest',
   sourceType: 'module',
-  globalObject: globalObj
+  globalObject: globalPrototype
 })
 
 
 
-
-sval.run(`
-import Airplane from 'https://raw.githubusercontent.com/DaveEveritt/js-module-example/master/airplane.js'
-`);
 
 const term = new Terminal({
   'theme': {
@@ -130,3 +127,36 @@ term.onData(e => {
     cmd += e
   }
 })
+
+sval.run(`
+import Airplane from 'https://raw.githubusercontent.com/DaveEveritt/js-module-example/master/airplane.js'
+
+Airplane.availableAirplanes.forEach( a => {
+  console.log(a.name + " " + a.fuelCapacity);
+})
+
+function x() {
+  return 4;
+}
+console.log(x());
+
+// function main() {
+//   return new Promise( resolve => {
+//     console.log(3);
+//     resolve(4);
+//     console.log(5);
+//   });
+// }
+
+
+
+// async function f(){
+//   console.log(2);
+//   let r = await main();
+//   console.log(r);
+// }
+
+// console.log(1);
+// f();
+// console.log(5);
+`)

@@ -5,261 +5,262 @@ function createSymbol(key) {
 
 export default function() {
 
+    const obj = Object.create(null);
     try {
-        this.Object = Object;
+        obj.Object = Object;
     }
     catch (err) { }
     try {
-        this.Function = Function;
+        obj.Function = Function;
     }
     catch (err) { }
     try {
-        this.Array = Array;
+        obj.Array = Array;
     }
     catch (err) { }
     try {
-        this.Number = Number;
+        obj.Number = Number;
     }
     catch (err) { }
     try {
-        this.parseFloat = parseFloat;
+        obj.parseFloat = parseFloat;
     }
     catch (err) { }
     try {
-        this.parseInt = parseInt;
+        obj.parseInt = parseInt;
     }
     catch (err) { }
     try {
-        this.Infinity = Infinity;
+        obj.Infinity = Infinity;
     }
     catch (err) { }
     try {
-        this.NaN = NaN;
+        obj.NaN = NaN;
     }
     catch (err) { }
     try {
-        this.undefined = undefined;
+        obj.undefined = undefined;
     }
     catch (err) { }
     try {
-        this.Boolean = Boolean;
+        obj.Boolean = Boolean;
     }
     catch (err) { }
     try {
-        this.String = String;
+        obj.String = String;
     }
     catch (err) { }
     try {
-        this.Symbol = Symbol;
+        obj.Symbol = Symbol;
     }
     catch (err) { }
     try {
-        this.Date = Date;
+        obj.Date = Date;
     }
     catch (err) { }
     try {
-        this.Promise = Promise;
+        obj.Promise = Promise;
     }
     catch (err) { }
     try {
-        this.RegExp = RegExp;
+        obj.RegExp = RegExp;
     }
     catch (err) { }
     try {
-        this.Error = Error;
+        obj.Error = Error;
     }
     catch (err) { }
     try {
-        this.EvalError = EvalError;
+        obj.EvalError = EvalError;
     }
     catch (err) { }
     try {
-        this.RangeError = RangeError;
+        obj.RangeError = RangeError;
     }
     catch (err) { }
     try {
-        this.ReferenceError = ReferenceError;
+        obj.ReferenceError = ReferenceError;
     }
     catch (err) { }
     try {
-        this.SyntaxError = SyntaxError;
+        obj.SyntaxError = SyntaxError;
     }
     catch (err) { }
     try {
-        this.TypeError = TypeError;
+        obj.TypeError = TypeError;
     }
     catch (err) { }
     try {
-        this.URIError = URIError;
+        obj.URIError = URIError;
     }
     catch (err) { }
     try {
-        this.JSON = JSON;
+        obj.JSON = JSON;
     }
     catch (err) { }
     try {
-        this.Math = Math;
+        obj.Math = Math;
     }
     catch (err) { }
     try {
-        this.console = console;
+        obj.console = console;
     }
     catch (err) { }
     try {
-        this.Intl = Intl;
+        obj.Intl = Intl;
     }
     catch (err) { }
     try {
-        this.ArrayBuffer = ArrayBuffer;
+        obj.ArrayBuffer = ArrayBuffer;
     }
     catch (err) { }
     try {
-        this.Uint8Array = Uint8Array;
+        obj.Uint8Array = Uint8Array;
     }
     catch (err) { }
     try {
-        this.Int8Array = Int8Array;
+        obj.Int8Array = Int8Array;
     }
     catch (err) { }
     try {
-        this.Uint16Array = Uint16Array;
+        obj.Uint16Array = Uint16Array;
     }
     catch (err) { }
     try {
-        this.Int16Array = Int16Array;
+        obj.Int16Array = Int16Array;
     }
     catch (err) { }
     try {
-        this.Uint32Array = Uint32Array;
+        obj.Uint32Array = Uint32Array;
     }
     catch (err) { }
     try {
-        this.Int32Array = Int32Array;
+        obj.Int32Array = Int32Array;
     }
     catch (err) { }
     try {
-        this.Float32Array = Float32Array;
+        obj.Float32Array = Float32Array;
     }
     catch (err) { }
     try {
-        this.Float64Array = Float64Array;
+        obj.Float64Array = Float64Array;
     }
     catch (err) { }
     try {
-        this.Uint8ClampedArray = Uint8ClampedArray;
+        obj.Uint8ClampedArray = Uint8ClampedArray;
     }
     catch (err) { }
     try {
-        this.DataView = DataView;
+        obj.DataView = DataView;
     }
     catch (err) { }
     try {
-        this.Map = Map;
+        obj.Map = Map;
     }
     catch (err) { }
     try {
-        this.Set = Set;
+        obj.Set = Set;
     }
     catch (err) { }
     try {
-        this.WeakMap = WeakMap;
+        obj.WeakMap = WeakMap;
     }
     catch (err) { }
     try {
-        this.WeakSet = WeakSet;
+        obj.WeakSet = WeakSet;
     }
     catch (err) { }
     try {
-        this.Proxy = Proxy;
+        obj.Proxy = Proxy;
     }
     catch (err) { }
     try {
-        this.Reflect = Reflect;
+        obj.Reflect = Reflect;
     }
     catch (err) { }
     try {
-        this.BigInt = BigInt;
+        obj.BigInt = BigInt;
     }
     catch (err) { }
     try {
-        this.decodeURI = decodeURI;
+        obj.decodeURI = decodeURI;
     }
     catch (err) { }
     try {
-        this.decodeURIComponent = decodeURIComponent;
+        obj.decodeURIComponent = decodeURIComponent;
     }
     catch (err) { }
     try {
-        this.encodeURI = encodeURI;
+        obj.encodeURI = encodeURI;
     }
     catch (err) { }
     try {
-        this.encodeURIComponent = encodeURIComponent;
+        obj.encodeURIComponent = encodeURIComponent;
     }
     catch (err) { }
     try {
-        this.escape = escape;
+        obj.escape = escape;
     }
     catch (err) { }
     try {
-        this.unescape = unescape;
+        obj.unescape = unescape;
     }
     catch (err) { }
     try {
-        this.eval = eval;
+        obj.eval = eval;
     }
     catch (err) { }
     try {
-        this.isFinite = isFinite;
+        obj.isFinite = isFinite;
     }
     catch (err) { }
     try {
-        this.isNaN = isNaN;
+        obj.isNaN = isNaN;
     }
     catch (err) { }
     try {
-        this.SharedArrayBuffer = SharedArrayBuffer;
+        obj.SharedArrayBuffer = SharedArrayBuffer;
     }
     catch (err) { }
     try {
-        this.Atomics = Atomics;
+        obj.Atomics = Atomics;
     }
     catch (err) { }
     try {
-        this.WebAssembly = WebAssembly;
+        obj.WebAssembly = WebAssembly;
     }
     catch (err) { }
     try {
-        this.clearInterval = clearInterval;
+        obj.clearInterval = clearInterval;
     }
     catch (err) { }
     try {
-        this.clearTimeout = clearTimeout;
+        obj.clearTimeout = clearTimeout;
     }
     catch (err) { }
     try {
-        this.setInterval = setInterval;
+        obj.setInterval = setInterval;
     }
     catch (err) { }
     try {
-        this.setTimeout = setTimeout;
+        obj.setTimeout = setTimeout;
     }
     catch (err) { }
     try {
-        this.crypto = crypto;
+        obj.crypto = crypto;
     }
     catch (err) { }
     try {
-        this.URL = URL;
+        obj.URL = URL;
     }
     catch (err) { }
 
 
-    if (this.Symbol) {
-        !this.Symbol.iterator && (this.Symbol.iterator = createSymbol('iterator'));
-        !this.Symbol.asyncIterator && (this.Symbol.asyncIterator = createSymbol('asynciterator'));
+    if (obj.Symbol) {
+        !obj.Symbol.iterator && (obj.Symbol.iterator = createSymbol('iterator'));
+        !obj.Symbol.asyncIterator && (obj.Symbol.asyncIterator = createSymbol('asynciterator'));
     }
 
-    return this;
+    return obj;
 }
   
