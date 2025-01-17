@@ -228,6 +228,7 @@ import {Parser as acorn} from 'acorn';
           this.withContext = create(null);
           this.parent = parent;
           this.isolated = isolated;
+          this.importPromises = []
           this[EXPORTS] = {} //.const(sourceType === 'module' ? EXPORTS : 'exports',{});
         //   this[IMPORTS] = {}
 
@@ -278,13 +279,6 @@ import {Parser as acorn} from 'acorn';
                   throw new SyntaxError("Identifier '" + name + "' has already been declared");
               }
           }
-        //   console.log(scope)
-        //   if (!scope.parent) {
-        //       var win = scope.find('window').get();
-        //       if (value !== NOINIT) {
-        //           define(win, name, { value: value, writable: true, enumerable: true });
-        //       }
-        //   }
       };
       Scope.prototype.let = function (name, value) {
           var variable = this.context[name];
@@ -975,8 +969,8 @@ import {Parser as acorn} from 'acorn';
       var globalScope = scope.global();
       var source = evaluate$1(node.source, scope);
       var module = globalScope.find(IMPORT + source);
-      console.log(source,module)
       var value;
+
       if (module) {
           var result = module.get();
           if (result) {
@@ -1215,9 +1209,10 @@ import {Parser as acorn} from 'acorn';
       if (handler) {
           return handler(node, scope);
       }
-      else {
-          console.warn(node.type + " isn't implemented during eval");
-      }
+    // TODO: debug flag ?
+    //   else {
+    //       console.warn(node.type + " isn't implemented during eval");
+    //   }
   }
 
   function import_Program(program, scope) {
@@ -1242,9 +1237,10 @@ import {Parser as acorn} from 'acorn';
       if (handler) {
           return handler(node, scope);
       }
-      else {
-          console.warn(node.type + " isn't implemented during import");
-      }
+    // TODO: debug flag?
+    //   else {
+    //       console.warn(node.type + " isn't implemented during import");
+    //   }
   }
   
   function ExpressionStatement$1(node, scope) {
@@ -1732,19 +1728,25 @@ import {Parser as acorn} from 'acorn';
       return BlockStatement$1(node, subScope, { invasived: true });
   }
 
-  let importPromises = []
 
   function ImportDeclaration$1(node, scope) {
 
     const globalScope = scope.global();
     const url = node.source.value
-    importPromises.push(fetch(url).then(r => r.text()).then((src) => {
+
+    globalScope.importPromises.push(fetch(url).then(r => r.text()).then(async (src) => {
         var ast = acorn.parse(src,{ ecmaVersion : 2020, sourceType: 'module' });
         const moduleScope = new Scope(null, true);
         const globalThis = globalScope.find("this").value
-        moduleScope.let('this', Object.create(globalThis.prototype));
+        const thisProto = Object.create(globalThis.prototype)
+        thisProto.prototype = globalThis.prototype // TODO: hacky
+        moduleScope.let('this', thisProto);
         moduleScope.url = url
+
+        import_evaluate$1(ast,moduleScope);
+        await Promise.all(moduleScope.importPromises)
         evaluate$1(ast, moduleScope);
+
         const exports = moduleScope[EXPORTS]
 
         for (var i = 0; i < node.specifiers.length; i++) {
@@ -1766,7 +1768,6 @@ import {Parser as acorn} from 'acorn';
             scope.var(spec.local.name, name_2 === '*' ? assign({}, exports) : exports[name_2]);
         }
 
-        console.log('import done, scope now: ',scope)
     }))
   }
 
@@ -4744,7 +4745,10 @@ import {Parser as acorn} from 'acorn';
   export default (function () {
       function Sval(options) {
           if (options === void 0) { options = {}; }
-          this.options = { ecmaVersion: 'latest' };
+          this.options = {
+            ecmaVersion: 'latest',
+            locations: true
+          };
           this.scope = new Scope(null, true);
           this.scope.url = "global"
         //   this.exports = {};
@@ -4790,18 +4794,15 @@ import {Parser as acorn} from 'acorn';
     //   };
       Sval.prototype.parse = function (code, parser) {
           if (typeof parser === 'function') {
-              return parser(code, assign({}, this.options));
+              return parser(code, assign({ sourceFile: code }, this.options));
           }
-          return acorn.parse(code, this.options);
+          return acorn.parse(code, Object.assign({ sourceFile: code }, this.options));
       };
       Sval.prototype.run = async function (code) {
-          var ast = typeof code === 'string' ? acorn.parse(code, this.options) : code;
+          var ast = typeof code === 'string' ? acorn.parse(code, Object.assign({ sourceFile: code }, this.options)) : code;
           hoist(ast, this.scope);
-          console.log(ast)
-          console.log('imports')
           import_evaluate$1(ast,this.scope);
-          await Promise.all(importPromises)
-          console.log('imports done')
+          await Promise.all(this.scope.importPromises)
           return evaluate$1(ast, this.scope);
       };
       Sval.version = version;
