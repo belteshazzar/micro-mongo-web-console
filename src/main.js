@@ -22,7 +22,9 @@ import global from './global.js'
 import termConsole from './termjs-console.js'
 import mongo from 'mongols'
 
-const historyInterval = 300
+// https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797?permalink_comment_id=3857871
+
+const HISTORY_INTERVAL = 200
 const PROMPT = '\x1b[1;34m$\x1b[0m '
 const DEL_LINE = '\x1b[2K\r'
 const NATIVE = function() { return '#native'; }
@@ -85,29 +87,50 @@ term.attachCustomKeyEventHandler((key) => {
     return true;
   } else if (key.code == 'ArrowUp') {
     const now = Date.now()
-    if (now > historyMillis + historyInterval) {
+    if (now > historyMillis + HISTORY_INTERVAL) {
       historyMillis = now
 
-      const oldPos = historyPos
-      if (historyPos > 0) {
-        historyPos--;
-      } else if (historyPos < 0) {
-        historyPos = history.length - 1
-      }
+      if (cmdY>0) {
+        cmdY--
+        cmdX = Math.min(cmd[cmdY].length,cmdX)
+        term.write('\x1b[A')
+        // take into account the prompt
+        console.log(cmdY, cmdX)
+        if (cmdY==0) {
+          for (let x=0 ; x<3-cmdX ; x++) {
+            term.write('\x1b[C') 
+          }
+        }
+      } else {
 
-      if (historyPos != oldPos) {
-        term.write(DEL_LINE)
-        term.write(PROMPT)
-        cmd = history[historyPos]
-        cmdPos = cmd.length
-        term.write(cmd)
-      }
-  
+        const oldPos = historyPos
+        if (historyPos > 0) {
+          historyPos--;
+        } else if (historyPos < 0) {
+          historyPos = history.length - 1
+        }
+
+        if (historyPos != oldPos) {
+          for (let i=0 ; i<cmd.length - cmdY ; i++) {
+            if (i>0) term.write('\x1b[B')
+            term.write(DEL_LINE)
+          }
+          for (let i=0 ; i<cmd.length ; i++) {
+            if (i>0) term.write('\x1b[A')
+            term.write(DEL_LINE)
+          }
+          term.write(PROMPT)
+          cmd = [...history[historyPos]]
+          cmdY = cmd.length - 1
+          cmdX = cmd[cmdY].length
+          term.write(cmd.join('\r\n'))
+        }
+      }  
     }
     return false;
   } else if (key.code == 'ArrowDown') {
     const now = Date.now()
-    if (now > historyMillis + historyInterval) {
+    if (now > historyMillis + HISTORY_INTERVAL) {
       historyMillis = now
 
       const oldPos = historyPos;
@@ -119,14 +142,21 @@ term.attachCustomKeyEventHandler((key) => {
       }
 
       if (historyPos != oldPos) {
-
-        term.write(DEL_LINE)
+        for (let i=0 ; i<=cmdY ; i++) {
+          if (i>0) term.write('\x1b[A')
+          term.write(DEL_LINE)
+        }
         term.write(PROMPT)
 
         if (historyPos != -1) {
-          cmd = history[historyPos]
-          cmdPos = cmd.length
-          term.write(cmd)
+          cmd = [...history[historyPos]]
+          cmdY = cmd.length - 1
+          cmdX = cmd[cmdY].length
+          term.write(cmd.join('\r\n'))
+        } else {
+          cmd = ['']
+          cmdY = 0
+          cmdX = 0
         }
       }
 
@@ -138,35 +168,37 @@ term.attachCustomKeyEventHandler((key) => {
 });
 
 const globalPrototype = global()
+
 const iframe = document.getElementById('playground').contentWindow
 globalPrototype.window = iframe
 globalPrototype.document = iframe.document
+
 globalPrototype.console = termConsole(term)
-globalPrototype.console.toString = NATIVE
-Object.values(globalPrototype.console).forEach((v) => v.toString = NATIVE)
-globalPrototype.db = new mongo.DB();
-globalPrototype.db.toString = NATIVE
-Object.values(globalPrototype.db).forEach((v) => v.toString = NATIVE)
-globalPrototype.help = function() {
+// globalPrototype.console.toString = NATIVE
+globalPrototype.console.help = function() {
   term.write("JavaScript terminal in the Browser");
-  term.write("\n\r")
+  term.write("\r\n")
 }
-globalPrototype.help.toString = NATIVE
-globalPrototype.history = async function(i) {
+globalPrototype.console.help.toString = NATIVE
+globalPrototype.console.history = async function(i) {
   if (Number.isInteger(i) && i>0 && i<=history.length) {
-    const c = history[i-1];
-    history.push(c);
+    const c = history[i-1].join('\r\n');
+    history.push([...history[i-1]]);
     term.write(PROMPT)
     term.write(c)
     term.write('\r\n')
     await execCommand(c)
   } else {
     for (let i=0 ; i<history.length ; i++) {
-      term.write(`${i+1}\t${history[i]}\n\r`)
+      term.write(`${i+1}\t${history[i].join('\r\n\t')}\r\n`)
     }
   }
 }
-globalPrototype.history.toString = NATIVE
+Object.values(globalPrototype.console).forEach((v) => v.toString = NATIVE)
+
+globalPrototype.db = new mongo.DB();
+globalPrototype.db.toString = NATIVE
+Object.values(globalPrototype.db).forEach((v) => v.toString = NATIVE)
 
 const sval = new Sval({
   ecmaVer: 'latest',
@@ -177,19 +209,20 @@ const sval = new Sval({
 let historyMillis = Date.now();
 let history = []
 let historyPos = -1;
-let cmd = ''
-let cmdPos = 0;
+let cmd = ['']
+let cmdX = 0;
+let cmdY = 0;
 const parseErrorRegex = /(\d+):(\d+)/
 
 function parseCommand(c) {
   try {
-    return sval.parse(cmd);
+    return sval.parse(cmd.join('\n'));
   } catch (e) {
     let m = parseErrorRegex.exec(e.message)
-    let lines = cmd.split('\n')
-    if (m && lines.length == m[1] && lines[lines.length-1].length == m[2]) {
-      cmd += '\n'
-      cmdPos++
+    if (m && cmd.length == m[1] && cmd[cmd.length-1].length == m[2]) {
+      cmd.push('')
+      cmdX = 0;
+      cmdY++
       return null;
     }
     throw e;
@@ -199,17 +232,18 @@ function parseCommand(c) {
 async function execCommand(astOrString) {
 
   historyPos = -1;
-  cmdPos = 0;
-  cmd = '';
+  cmd = [''];
+  cmdX = 0;
+  cmdY = 0;
 
   try {
     const res = `${await sval.run(astOrString)}`
     if (res !== 'undefined') {
       term.write(res);
-      term.write('\n\r')
+      term.write('\r\n')
     }
   } catch (e) {
-    term.write(`\x1b[1;31m${String(e)}\x1b[0m\n\r`)
+    term.write(`\x1b[1;31m${String(e)}\x1b[0m\r\n`)
   }
 
 }
@@ -219,78 +253,84 @@ term.onData(async e => {
   if (e === '\r') {
     term.write(`\r\n`)
 
-    try {
-      const ast = parseCommand(cmd);
-
-      if (ast) {
-
-        history.push(cmd);
-        await execCommand(ast);
-
-        term.write(PROMPT)
-      }
-    } catch (e) {
-      term.write(e.message)
-      term.write('\n\r')
+    if (cmd.length == 1 && cmd[0].trim().length == 0) {
       term.write(PROMPT)
-      history.push(cmd);
-      historyPos = -1;
-      cmdPos = 0;
-      cmd = '';
-      return
-    }
+    } else {
 
+      try {
+        const ast = parseCommand(cmd);
+
+        if (ast) {
+          history.push(cmd);
+          await execCommand(ast);
+          term.write(PROMPT)
+        }
+      } catch (e) {
+        term.write(e.message)
+        term.write('\r\n')
+        term.write(PROMPT)
+        history.push(cmd);
+        historyPos = -1;
+        cmdX = 0;
+        cmdY = 0;
+        cmd = [''];
+        return
+      }
+    }
   } else if (e === '\x7F') { // backspace
 
-    if (cmd.length > 0) {
+    if (cmd[cmdY].length > 0) {
       term.write('\x1b[1D')
-      cmdPos--
-      const left = cmd.substring(0,cmdPos)
-      const rightNow = cmd.substring(cmdPos+1)
+      cmdX--
+      const left = cmd[cmdY].substring(0,cmdX)
+      const rightNow = cmd[cmdY].substring(cmdX+1)
       term.write(rightNow + ' ')
       term.write(`\x1b[${rightNow.length+1}D`)
-      cmd = left + rightNow
+      cmd[cmdY] = left + rightNow
     }
 
   } else if (e === '\x1b[3~') { // delete
 
-    if (cmd.length > 0 && cmdPos < cmd.length) {
-      const left = cmd.substring(0,cmdPos)
-      const rightNow = cmd.substring(cmdPos+1)
+    if (cmd[cmdY].length > 0 && cmdX < cmd[cmdY].length) {
+      const left = cmd[cmdY].substring(0,cmdX)
+      const rightNow = cmd[cmdY].substring(cmdX+1)
       term.write(rightNow + ' ')
       term.write(`\x1b[${rightNow.length+1}D`)
-      cmd = left + rightNow
+      cmd[cmdY] = left + rightNow
     }
 
   } else if (e == '\x1b[D') { // left
-    if (cmdPos != 0) {
-      cmdPos--
+    if (cmdX != 0) {
+      cmdX--
+      console.log(cmdX)
       term.write(e)
     }
   } else if (e == '\x1b[C') { // right
-    if (cmdPos != cmd.length) {
-      cmdPos++
+    if (cmdX != cmd[cmdY].length) {
+      cmdX++
+      console.log(cmdX)
       term.write(e)
     }
 } else {
+  // TODO: handle paste while in the middle of a line 
     // may be multiple lines from paste
     const txt = e.replaceAll('\r','\r\n')
     term.write(txt)
-    if (cmdPos == 0) {
-      if (cmd.length>0) {
-        term.write(cmd)
-        term.write(`\x1b[${cmd.length}D`)
+    if (cmdX == 0) {
+      if (cmd[cmdY].length>0) {
+        term.write(cmd[cmdY])
+        term.write(`\x1b[${cmd[cmdY].length}D`)
       }
-      cmd = txt + cmd
-    } else if (cmdPos == cmd.length) {
-      cmd = cmd + txt
+      cmd[cmdY] = txt + cmd[cmdY]
+    } else if (cmdX == cmd[cmdY].length) {
+      cmd[cmdY] = cmd[cmdY] + txt
     } else {
-      const right = cmd.substring(cmdPos)
+      const right = cmd[cmdY].substring(cmdX)
       term.write(right)
       term.write(`\x1b[${right.length}D`)
-      cmd = cmd.substring(0,cmdPos) + txt + right
+      cmd[cmdY] = cmd[cmdY].substring(0,cmdX) + txt + right
     }
-    cmdPos += txt.length
+    cmdX += txt.length // TODO: handle multi-line paste
   }
 })
 
