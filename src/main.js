@@ -1,5 +1,20 @@
 import './style.css'
 import '@xterm/xterm/css/xterm.css'
+import 'highlight.js/styles/github.css'
+import 'highlightjs-copy/styles/highlightjs-copy.css'
+
+import hljs from 'highlight.js/lib/core';
+import javascript from 'highlight.js/lib/languages/javascript';
+import CopyButtonPlugin from 'highlightjs-copy';
+
+hljs.addPlugin(
+  new CopyButtonPlugin({
+    autohide: false, // Always show the copy button
+  })
+);
+hljs.registerLanguage('javascript', javascript);
+hljs.highlightAll();
+
 import { Terminal } from '@xterm/xterm/lib/xterm.js'
 import { FitAddon } from '@xterm/addon-fit';
 import Sval from './sval-fork.js';
@@ -36,7 +51,13 @@ const baseTheme = {
 };
 
 const term = new Terminal({
-  fontFamily: '"Cascadia Code", Menlo, monospace',
+  fontFamily: 'monospace',
+  fontSize: 13,
+  fontWeight: 300,
+  drawBoldTextInBrightColors: true,
+  fontWeightBold: 300,
+  lineHeight: 1.2,
+  fontStyle: 'normal',
   theme: baseTheme,
   cursorBlink: true,
 })
@@ -51,7 +72,6 @@ window.onresize = function() {
 term.open(document.getElementById('terminal'));
 fitAddon.fit();
 
-console.log(figlet.textAsync("Hello!"))
 term.write(PROMPT)
 term.focus();
 
@@ -79,6 +99,7 @@ term.attachCustomKeyEventHandler((key) => {
         term.write(DEL_LINE)
         term.write(PROMPT)
         cmd = history[historyPos]
+        cmdPos = cmd.length
         term.write(cmd)
       }
   
@@ -104,6 +125,7 @@ term.attachCustomKeyEventHandler((key) => {
 
         if (historyPos != -1) {
           cmd = history[historyPos]
+          cmdPos = cmd.length
           term.write(cmd)
         }
       }
@@ -220,19 +242,25 @@ term.onData(async e => {
 
   } else if (e === '\x7F') { // backspace
 
-    // TODO: take into account cmdPos
-
     if (cmd.length > 0) {
-      term.write('\b \b')
+      term.write('\x1b[1D')
       cmdPos--
-      cmd = cmd.slice(0,-1)
+      const left = cmd.substring(0,cmdPos)
+      const rightNow = cmd.substring(cmdPos+1)
+      term.write(rightNow + ' ')
+      term.write(`\x1b[${rightNow.length+1}D`)
+      cmd = left + rightNow
     }
 
   } else if (e === '\x1b[3~') { // delete
 
-    // TODO:
-
-    console.log('del')
+    if (cmd.length > 0 && cmdPos < cmd.length) {
+      const left = cmd.substring(0,cmdPos)
+      const rightNow = cmd.substring(cmdPos+1)
+      term.write(rightNow + ' ')
+      term.write(`\x1b[${rightNow.length+1}D`)
+      cmd = left + rightNow
+    }
 
   } else if (e == '\x1b[D') { // left
     if (cmdPos != 0) {

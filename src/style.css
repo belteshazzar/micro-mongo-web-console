@@ -65,3 +65,6 @@ body {
 }
 
 
+.hljs {
+    background: rgb(246, 248, 250) !important;
+  }

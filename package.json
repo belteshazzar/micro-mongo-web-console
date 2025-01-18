@@ -15,6 +15,10 @@
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
     "acorn": "^8.14.0",
-    "node-inspect-extracted": "^3.0.2"
+    "highlight.js": "^11.11.1",
+    "highlightjs-copy": "^1.0.6",
+    "mongols": "^1.0.4",
+    "node-inspect-extracted": "^3.0.2",
+    "nodejs-console-table": "^1.0.5"
   }
 }
