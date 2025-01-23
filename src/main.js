@@ -190,7 +190,6 @@ globalPrototype.console.history = async function(i) {
     await execCommand(c)
   } else {
     for (let i=0 ; i<history.length ; i++) {
-      term.write(`${i+1}\t${history[i].join('\r\n\t')}\r\n`)
     }
   }
 }
@@ -314,8 +313,10 @@ term.onData(async e => {
 } else {
   // TODO: handle paste while in the middle of a line 
     // may be multiple lines from paste
-    const txt = e.replaceAll('\r','\r\n')
+    const lns = e.split('\r')
+    const txt = lns.join('\r\n')
     term.write(txt)
+
     if (cmdX == 0) {
       if (cmd[cmdY].length>0) {
         term.write(cmd[cmdY])
