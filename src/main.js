@@ -100,9 +100,8 @@ term.attachCustomKeyEventHandler((key) => {
         cmdY--
         cmdX = Math.min(cmd[cmdY].length,cmdX)
         term.write(MOVE_UP)
-console.log('up to cmdX = ' + cmdX + ' col=' + (cmdX + (cmdY==0?PROMPT_LENGTH:0)))
         // take into account the prompt
-        term.write(`\x1b[${cmdX + 5}G`)// + (cmdY==0?PROMPT_LENGTH:0)}G`)
+        term.write(`\x1b[${cmdX+1+(cmdY==0?PROMPT_LENGTH:0)}G`)
       } else {
         // on first line, show previous
         const oldPos = historyPos
@@ -113,8 +112,8 @@ console.log('up to cmdX = ' + cmdX + ' col=' + (cmdX + (cmdY==0?PROMPT_LENGTH:0)
         }
 
         if (historyPos != oldPos) {
-          // move to col 0
-          term.write(`\x1b[${0}G`)
+          // move to col 1
+          term.write(`\x1b[1G`)
           term.write(ERASE_LINE)
           if (oldPos != -1) {
             // erase lines
@@ -138,6 +137,7 @@ console.log('up to cmdX = ' + cmdX + ' col=' + (cmdX + (cmdY==0?PROMPT_LENGTH:0)
     }
     return false;
   } else if (key.code == 'ArrowDown') {
+
     const now = Date.now()
     if (now > historyMillis + HISTORY_INTERVAL) {
       historyMillis = now
@@ -147,7 +147,7 @@ console.log('up to cmdX = ' + cmdX + ' col=' + (cmdX + (cmdY==0?PROMPT_LENGTH:0)
         cmdY++
         term.write(MOVE_DOWN)
         cmdX = Math.min(cmd[cmdY].length,cmdX)
-        term.write(`\x1b[${cmdX}G`)
+        term.write(`\x1b[${cmdX+1+(cmdY==0?PROMPT_LENGTH:0)}G`)
       } else {
         // show next history command
         const oldPos = historyPos;
@@ -159,8 +159,8 @@ console.log('up to cmdX = ' + cmdX + ' col=' + (cmdX + (cmdY==0?PROMPT_LENGTH:0)
         }
 
         if (historyPos != oldPos) {
-          // move to col 0
-          term.write(`\x1b[${0}G`)
+          // move to col 1
+          term.write(`\x1b[1G`)
           term.write(ERASE_LINE)
           // erase lines
           for (let i=1 ; i<cmd.length ; i++) {
@@ -174,9 +174,8 @@ console.log('up to cmdX = ' + cmdX + ' col=' + (cmdX + (cmdY==0?PROMPT_LENGTH:0)
             cmd = [...history[historyPos]]
             cmdY = cmd.length-1
             cmdX = cmd[cmdY].length
-            console.log('down x = ' + cmdX)
             term.write(cmd.join('\r\n'))
-            // term.write(`\x1b[${cmdX + (cmdY==0 ? PROMPT_LENGTH : 0)}G`)
+            term.write(`\x1b[${cmdX+1+(cmdY==0?PROMPT_LENGTH:0)}G`)
           } else {
             cmd = ['']
             cmdY = 0
@@ -198,7 +197,6 @@ globalPrototype.window = iframe
 globalPrototype.document = iframe.document
 
 globalPrototype.console = termConsole(term)
-// globalPrototype.console.toString = NATIVE
 globalPrototype.console.help = function() {
   term.write("JavaScript terminal in the Browser");
   term.write("\r\n")
@@ -214,6 +212,7 @@ globalPrototype.console.history = async function(i) {
     await execCommand(c)
   } else {
     for (let i=0 ; i<history.length ; i++) {
+      term.write(`${i+1}\t${history[i].join('\r\n\t')}\r\n`)
     }
   }
 }
@@ -322,17 +321,15 @@ term.onData(async e => {
       cmd[cmdY] = left + rightNow
     }
 
-  } else if (e == '\x1b[D') { // left
+  } else if (e == MOVE_LEFT) {
     if (cmdX != 0) {
       cmdX--
-      console.log(cmdX)
-      term.write(e)
+      term.write(`\x1b[${cmdX+1+(cmdY==0?PROMPT_LENGTH:0)}G`)
     }
-  } else if (e == '\x1b[C') { // right
+  } else if (e == MOVE_RIGHT) {
     if (cmdX != cmd[cmdY].length) {
       cmdX++
-      console.log(cmdX)
-      term.write(e)
+      term.write(`\x1b[${cmdX+1+(cmdY==0?PROMPT_LENGTH:0)}G`)
     }
 } else {
   // TODO: handle paste while in the middle of a line 
