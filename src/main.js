@@ -26,7 +26,12 @@ import mongo from 'mongols'
 
 const HISTORY_INTERVAL = 200
 const PROMPT = '\x1b[1;34m$\x1b[0m '
-const DEL_LINE = '\x1b[2K\r'
+const PROMPT_LENGTH = 2
+const ERASE_LINE = '\x1b[2K'
+const MOVE_UP = '\x1b[A'
+const MOVE_DOWN = '\x1b[B'
+const MOVE_RIGHT = '\x1b[C'
+const MOVE_LEFT = '\x1b[D'
 const NATIVE = function() { return '#native'; }
 
 // https://jakob-bagterp.github.io/colorist-for-python/ansi-escape-codes/standard-16-colors/#foreground-text-colors
@@ -90,19 +95,16 @@ term.attachCustomKeyEventHandler((key) => {
     if (now > historyMillis + HISTORY_INTERVAL) {
       historyMillis = now
 
-      if (cmdY>0) {
+      if (cmdY>0) { 
+        // not on first line of command
         cmdY--
         cmdX = Math.min(cmd[cmdY].length,cmdX)
-        term.write('\x1b[A')
+        term.write(MOVE_UP)
+console.log('up to cmdX = ' + cmdX + ' col=' + (cmdX + (cmdY==0?PROMPT_LENGTH:0)))
         // take into account the prompt
-        console.log(cmdY, cmdX)
-        if (cmdY==0) {
-          for (let x=0 ; x<3-cmdX ; x++) {
-            term.write('\x1b[C') 
-          }
-        }
+        term.write(`\x1b[${cmdX + 5}G`)// + (cmdY==0?PROMPT_LENGTH:0)}G`)
       } else {
-
+        // on first line, show previous
         const oldPos = historyPos
         if (historyPos > 0) {
           historyPos--;
@@ -111,14 +113,21 @@ term.attachCustomKeyEventHandler((key) => {
         }
 
         if (historyPos != oldPos) {
-          for (let i=0 ; i<cmd.length - cmdY ; i++) {
-            if (i>0) term.write('\x1b[B')
-            term.write(DEL_LINE)
+          // move to col 0
+          term.write(`\x1b[${0}G`)
+          term.write(ERASE_LINE)
+          if (oldPos != -1) {
+            // erase lines
+            for (let i=1 ; i<cmd.length ; i++) {
+              term.write(MOVE_DOWN)
+              term.write(ERASE_LINE)
+            }
+            // move back to first line
+            for (let i=1 ; i<cmd.length ; i++) {
+              term.write(MOVE_UP)
+            }
           }
-          for (let i=0 ; i<cmd.length ; i++) {
-            if (i>0) term.write('\x1b[A')
-            term.write(DEL_LINE)
-          }
+
           term.write(PROMPT)
           cmd = [...history[historyPos]]
           cmdY = cmd.length - 1
@@ -133,33 +142,48 @@ term.attachCustomKeyEventHandler((key) => {
     if (now > historyMillis + HISTORY_INTERVAL) {
       historyMillis = now
 
-      const oldPos = historyPos;
-      if (historyPos>-1) {
-        historyPos = Math.min(historyPos + 1, history.length)
-        if (historyPos == history.length) {
-          historyPos = -1
+      if (cmdY < cmd.length-1) {
+        // not on last line, move down
+        cmdY++
+        term.write(MOVE_DOWN)
+        cmdX = Math.min(cmd[cmdY].length,cmdX)
+        term.write(`\x1b[${cmdX}G`)
+      } else {
+        // show next history command
+        const oldPos = historyPos;
+        if (historyPos>-1) {
+          historyPos = Math.min(historyPos + 1, history.length)
+          if (historyPos == history.length) {
+            historyPos = -1
+          }
+        }
+
+        if (historyPos != oldPos) {
+          // move to col 0
+          term.write(`\x1b[${0}G`)
+          term.write(ERASE_LINE)
+          // erase lines
+          for (let i=1 ; i<cmd.length ; i++) {
+            term.write(MOVE_UP)
+            term.write(ERASE_LINE)
+          }
+
+          term.write(PROMPT)
+
+          if (historyPos != -1) {
+            cmd = [...history[historyPos]]
+            cmdY = cmd.length-1
+            cmdX = cmd[cmdY].length
+            console.log('down x = ' + cmdX)
+            term.write(cmd.join('\r\n'))
+            // term.write(`\x1b[${cmdX + (cmdY==0 ? PROMPT_LENGTH : 0)}G`)
+          } else {
+            cmd = ['']
+            cmdY = 0
+            cmdX = 0
+          }
         }
       }
-
-      if (historyPos != oldPos) {
-        for (let i=0 ; i<=cmdY ; i++) {
-          if (i>0) term.write('\x1b[A')
-          term.write(DEL_LINE)
-        }
-        term.write(PROMPT)
-
-        if (historyPos != -1) {
-          cmd = [...history[historyPos]]
-          cmdY = cmd.length - 1
-          cmdX = cmd[cmdY].length
-          term.write(cmd.join('\r\n'))
-        } else {
-          cmd = ['']
-          cmdY = 0
-          cmdX = 0
-        }
-      }
-
     }
     return false;
   }
