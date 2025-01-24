@@ -26,8 +26,10 @@ import mongo from 'mongols'
 
 const HISTORY_INTERVAL = 200
 const PROMPT = '\x1b[1;34m$\x1b[0m '
+const PROMPTX = '\x1b[1;34m|\x1b[0m '
 const PROMPT_LENGTH = 2
 const ERASE_LINE = '\x1b[2K'
+const ERASE_TO_END = '\x1b[0K'
 const MOVE_UP = '\x1b[A'
 const MOVE_DOWN = '\x1b[B'
 const MOVE_RIGHT = '\x1b[C'
@@ -101,8 +103,8 @@ term.attachCustomKeyEventHandler((key) => {
         cmdX = Math.min(cmd[cmdY].length,cmdX)
         term.write(MOVE_UP)
         // take into account the prompt
-        term.write(`\x1b[${cmdX+1+(cmdY==0?PROMPT_LENGTH:0)}G`)
-      } else {
+        term.write(`\x1b[${cmdX+1+PROMPT_LENGTH}G`)
+      } else if (!cmdEdited){
         // on first line, show previous
         const oldPos = historyPos
         if (historyPos > 0) {
@@ -131,7 +133,8 @@ term.attachCustomKeyEventHandler((key) => {
           cmd = [...history[historyPos]]
           cmdY = cmd.length - 1
           cmdX = cmd[cmdY].length
-          term.write(cmd.join('\r\n'))
+          cmdEdited = false;
+          term.write(cmd.join('\r\n'+PROMPTX))
         }
       }  
     }
@@ -147,7 +150,11 @@ term.attachCustomKeyEventHandler((key) => {
         cmdY++
         term.write(MOVE_DOWN)
         cmdX = Math.min(cmd[cmdY].length,cmdX)
-        term.write(`\x1b[${cmdX+1+(cmdY==0?PROMPT_LENGTH:0)}G`)
+        term.write(`\x1b[${cmdX+1+PROMPT_LENGTH}G`)
+      } else if (cmdEdited) {
+          // if down on last line, go to end of line
+          cmdX = cmd[cmdY].length
+          term.write(`\x1b[${cmdX+1+PROMPT_LENGTH}G`)
       } else {
         // show next history command
         const oldPos = historyPos;
@@ -174,13 +181,19 @@ term.attachCustomKeyEventHandler((key) => {
             cmd = [...history[historyPos]]
             cmdY = cmd.length-1
             cmdX = cmd[cmdY].length
-            term.write(cmd.join('\r\n'))
-            term.write(`\x1b[${cmdX+1+(cmdY==0?PROMPT_LENGTH:0)}G`)
+            cmdEdited = false;
+            term.write(cmd.join('\r\n'+PROMPTX))
+            term.write(`\x1b[${cmdX+1+PROMPT_LENGTH}G`)
           } else {
             cmd = ['']
             cmdY = 0
             cmdX = 0
+            cmdEdited = false;
           }
+        } else {
+          // if down on last line, go to end of line
+          cmdX = cmd[cmdY].length
+          term.write(`\x1b[${cmdX+1+PROMPT_LENGTH}G`)
         }
       }
     }
@@ -234,6 +247,7 @@ let historyPos = -1;
 let cmd = ['']
 let cmdX = 0;
 let cmdY = 0;
+let cmdEdited = false;
 const parseErrorRegex = /(\d+):(\d+)/
 
 function parseCommand(c) {
@@ -257,6 +271,7 @@ async function execCommand(astOrString) {
   cmd = [''];
   cmdX = 0;
   cmdY = 0;
+  cmdEdited = false;
 
   try {
     const res = `${await sval.run(astOrString)}`
@@ -273,35 +288,70 @@ async function execCommand(astOrString) {
 term.onData(async e => {
 
   if (e === '\r') {
-    term.write(`\r\n`)
 
-    if (cmd.length == 1 && cmd[0].trim().length == 0) {
-      term.write(PROMPT)
-    } else {
+    if (cmdY == cmd.length-1 && cmdX == cmd[cmdY].length) {
+      term.write(`\r\n`)
 
-      try {
-        const ast = parseCommand(cmd);
-
-        if (ast) {
-          history.push(cmd);
-          await execCommand(ast);
-          term.write(PROMPT)
-        }
-      } catch (e) {
-        term.write(e.message)
-        term.write('\r\n')
+      if (cmd.length == 1 && cmd[0].trim().length == 0) {
         term.write(PROMPT)
-        history.push(cmd);
-        historyPos = -1;
-        cmdX = 0;
-        cmdY = 0;
-        cmd = [''];
-        return
+      } else {
+
+        try {
+          const ast = parseCommand(cmd);
+
+          if (ast) {
+            history.push(cmd);
+            await execCommand(ast);
+            term.write(PROMPT)
+          } else {
+            term.write(PROMPTX)
+          }
+        } catch (e) {
+          term.write(e.message)
+          term.write('\r\n')
+          term.write(PROMPT)
+          history.push(cmd);
+          historyPos = -1;
+          cmdX = 0;
+          cmdY = 0;
+          cmd = [''];
+          cmdEdited = false;
+          return
+        }
       }
+    } else {
+      // in middle of command, split line
+
+      const left  = cmd[cmdY].substring(0,cmdX)
+      const right = cmd[cmdY].substring(cmdX)
+
+      cmd[cmdY] = left
+      term.write(ERASE_TO_END) // clear to end of line
+      term.write('\r\n')
+      cmdY++
+      cmd.splice(cmdY,0,right)
+      term.write(PROMPTX)
+      term.write(right)
+      term.write(ERASE_TO_END) // clear to end of line
+      term.write('\r')
+      // term.write(PROMPTX)
+      cmdEdited = true
+
+      for (let i=cmdY+1; i<cmd.length ; i++) {
+        term.write('\n')
+        term.write(PROMPTX)
+        term.write(cmd[i])
+        term.write(ERASE_TO_END)
+        term.write('\r')
+      }
+      for (let i=cmdY+1; i<cmd.length ; i++) {
+        term.write(MOVE_UP)
+      }      
+      term.write(PROMPTX)
     }
   } else if (e === '\x7F') { // backspace
 
-    if (cmd[cmdY].length > 0) {
+    if (cmd[cmdY].length > 0 && cmdX > 0) {
       term.write('\x1b[1D')
       cmdX--
       const left = cmd[cmdY].substring(0,cmdX)
@@ -309,6 +359,36 @@ term.onData(async e => {
       term.write(rightNow + ' ')
       term.write(`\x1b[${rightNow.length+1}D`)
       cmd[cmdY] = left + rightNow
+      cmdEdited = true;
+    } else if (cmdX==0 && cmdY>0) {
+      // backspace at beginning of line, join onto previous line
+      term.write('\r')
+      for (let i=cmdY; i<cmd.length ; i++) {
+        term.write(ERASE_LINE)
+        if (i<cmd.length-1) {
+          term.write('\n')
+        }
+      }
+      term.write(MOVE_UP)
+      for (let i=cmd.length-1; i>cmdY ; i--) {
+        term.write(PROMPTX)
+        term.write(cmd[i])
+        term.write(MOVE_UP)
+        term.write('\r')
+      }
+
+      const left = cmd[cmdY-1]
+      const right = cmd[cmdY]
+      cmd[cmdY-1] = left + right
+      cmd.splice(cmdY,1)
+      cmdEdited = true;
+      cmdY--
+      cmdX = left.length
+
+      term.write(cmdY==0 ? PROMPT : PROMPTX)
+      term.write(cmd[cmdY])
+      term.write(`\x1b[${right.length}D`)
+
     }
 
   } else if (e === '\x1b[3~') { // delete
@@ -319,40 +399,52 @@ term.onData(async e => {
       term.write(rightNow + ' ')
       term.write(`\x1b[${rightNow.length+1}D`)
       cmd[cmdY] = left + rightNow
+      cmdEdited = true;
     }
 
   } else if (e == MOVE_LEFT) {
     if (cmdX != 0) {
       cmdX--
-      term.write(`\x1b[${cmdX+1+(cmdY==0?PROMPT_LENGTH:0)}G`)
+      term.write(`\x1b[${cmdX+1+PROMPT_LENGTH}G`)
+    } else if (cmdX == 0 && cmdY > 0) {
+      cmdY--
+      cmdX = cmd[cmdY].length
+      term.write(MOVE_UP)
+      term.write(`\x1b[${cmdX+1+PROMPT_LENGTH}G`)
     }
   } else if (e == MOVE_RIGHT) {
     if (cmdX != cmd[cmdY].length) {
       cmdX++
-      term.write(`\x1b[${cmdX+1+(cmdY==0?PROMPT_LENGTH:0)}G`)
+      term.write(`\x1b[${cmdX+1+PROMPT_LENGTH}G`)
+    } else if (cmdX == cmd[cmdY].length && cmdY < cmd.length-1) {
+      cmdY++
+      cmdX = 0
+      term.write(MOVE_DOWN)
+      term.write(`\r`)
+      term.write(`\x1b[${cmdX+1+PROMPT_LENGTH}G`)
     }
-} else {
-  // TODO: handle paste while in the middle of a line 
-    // may be multiple lines from paste
+  } else {
     const lns = e.split('\r')
-    const txt = lns.join('\r\n')
-    term.write(txt)
+    const left  = cmd[cmdY].substring(0,cmdX)
+    const right = cmd[cmdY].substring(cmdX)
 
-    if (cmdX == 0) {
-      if (cmd[cmdY].length>0) {
-        term.write(cmd[cmdY])
-        term.write(`\x1b[${cmd[cmdY].length}D`)
-      }
-      cmd[cmdY] = txt + cmd[cmdY]
-    } else if (cmdX == cmd[cmdY].length) {
-      cmd[cmdY] = cmd[cmdY] + txt
-    } else {
-      const right = cmd[cmdY].substring(cmdX)
-      term.write(right)
-      term.write(`\x1b[${right.length}D`)
-      cmd[cmdY] = cmd[cmdY].substring(0,cmdX) + txt + right
+    cmd[cmdY] = left + lns[0]
+    term.write(lns[0])
+
+    for (let i=1 ; i<lns.length ; i++) {
+      cmdY++
+      cmd.splice(cmdY,0,lns[i])
+      term.write('\r\n')
+      term.write(PROMPTX)
+      term.write(lns[i])
     }
-    cmdX += txt.length // TODO: handle multi-line paste
+  
+    cmdX = cmd[cmdY].length
+    cmd[cmdY] += right
+    cmdEdited = true; 
+    term.write(right)
+    term.write(`\x1b[${cmdX+1+PROMPT_LENGTH}G`)
+
   }
 })
 
