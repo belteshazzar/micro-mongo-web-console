@@ -83,6 +83,10 @@ export default function() {
     }
     catch (err) { }
     try {
+      obj.RegExp = RegExp;
+    }
+    catch (err) { }
+    try {
         obj.SyntaxError = SyntaxError;
     }
     catch (err) { }
