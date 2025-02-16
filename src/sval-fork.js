@@ -816,7 +816,7 @@ import {Parser as acorn} from 'acorn';
                   }
               }
               if (typeof func !== 'function') {
-                  throw new TypeErrorawait (name_1 + " is not a function");
+                  throw new TypeError(name_1 + " is not a function");
               }
               else {
                   throw new TypeError("Class constructor " + name_1 + " cannot be invoked without 'new'");

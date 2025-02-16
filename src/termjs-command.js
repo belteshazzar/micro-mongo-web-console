@@ -141,21 +141,15 @@ export default function(term) {
     const right = this.lines[this.y].substring(this.x)
 
     this.lines[this.y] = left + lns[0]
-    // term.write(lns[0])
 
     for (let i=1 ; i<lns.length ; i++) {
       this.y++
       this.lines.splice(this.y,0,lns[i])
-      // term.write('\r\n')
-      // term.write(PROMPTX)
-      // term.write(lns[i])
     }
   
     this.x = this.lines[this.y].length
     this.lines[this.y] += right
     this.edited = true; 
-    // term.write(right)
-    // term.write(`\x1b[${this.x+1+PROMPT_LENGTH}G`)
 
     this.write()
   }
@@ -164,7 +158,6 @@ export default function(term) {
     if (this.lines[this.y].length > 0 && this.x > 0) {
       this.erase()
 
-      // in the middle of a line, delete character
       this.x--
       const left = this.lines[this.y].substring(0,this.x)
       const rightNow = this.lines[this.y].substring(this.x+1)
@@ -232,47 +225,29 @@ export default function(term) {
     // set col to 1
     term.write(`\r`)
 
-    term.write(SAVE_POS)
-
+    // term.write(SAVE_POS)
+let y=0
     for (let i=0 ; i<lineRows.length ; i++) {
       for (let j=0 ; j<lineRows[i].rows.length ; j++) { 
         term.write(ERASE_LINE)
         term.write('\r\n')
+        y++
       }
     }
 
-    term.write(RESTORE_POS)
-
-    // const cols = term.cols
-    // let numLines = 0
-    // for (let i=0 ; i<this.lines.length ; i++) {
-    //   numLines += Math.ceil((PROMPT_LENGTH + this.lines[i].length) / cols)
-    // }
-    // console.log(numLines)
-
-    // term.write(`\x1b[${this.lines.length - this.y - 1}B`)
-    
-    // for (let i=0 ; i<this.lines.length ; i++) {
-    //   // move down to last line
-    //   if (i==0) term.write(`\x1b[${this.lines.length - this.y - 1}B`)
-    //   else term.write(MOVE_UP)
-
-    //   term.write(ERASE_LINE)
-    //   // if (i==0) term.write('X')
-    //   // else term.write('W')
-    // }
-    // term.write('\r')
+if (y>0) term.write(`\x1b[${y}A`)
+  // term.write(RESTORE_POS)
   }
 
   this.write = function() {
 
-    term.write(SAVE_POS)
+    // term.write(SAVE_POS)
 
     const cols = term.cols - PROMPT_LENGTH;
     const re = new RegExp(String.raw`.{1,${cols}}`, "g");
     let row = 0
     let lineRows = []
-
+let y = 0
     for (let i=0 ; i<this.lines.length ; i++) {
       let rows = this.lines[i].length == 0 ? [''] : this.lines[i].match(re)
       lineRows.push({ row: row, rows: rows })
@@ -286,14 +261,21 @@ export default function(term) {
 
         term.write(rows[j])
         term.write('\r\n')
+        y++
       }
       row += rows.length
     }
 
-    term.write(RESTORE_POS)
-
+    // term.write(RESTORE_POS)
+if (y>0) term.write(`\x1b[${y}A`)
     // go down to this.y
-    const down = lineRows[this.y].row+Math.floor(this.x / cols)
+    let down = lineRows[this.y].row+Math.floor(this.x / cols)
+    if (down>=term.rows) {
+      down=10
+      console.log(`down: ${down}, rows: ${term.rows}`)
+    // } else {
+    //   console.log(`down: ${down}, rows: ${term.rows}`)
+    }
     if (down>0) term.write(`\x1b[${down}B`)
     // set col to this.x
     term.write(`\x1b[${PROMPT_LENGTH + this.x % cols + 1}G`)

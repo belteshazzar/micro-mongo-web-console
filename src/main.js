@@ -22,6 +22,7 @@ import global from './global.js'
 import termConsole from './termjs-console.js'
 import mongo from 'mongols'
 import termCommand from './termjs-command.js'
+import { TermFrame } from './termjs-frame.js';
 
 const PROMPT = '\x1b[1;34m$\x1b[0m '
 const PROMPTX = '\x1b[1;34m|\x1b[0m '
@@ -58,13 +59,14 @@ const baseTheme = {
 const term = new Terminal({
   fontFamily: 'monospace',
   fontSize: 13,
-  fontWeight: 300,
+  fontWeight: 400,
   drawBoldTextInBrightColors: true,
-  fontWeightBold: 300,
-  lineHeight: 1.2,
+  fontWeightBold: 400,
+  lineHeight: 1.0,
   fontStyle: 'normal',
   theme: baseTheme,
   cursorBlink: true,
+  scrollback: 0//1000
 })
 
 const fitAddon = new FitAddon();
@@ -73,30 +75,61 @@ window.onresize = function() {
   fitAddon.fit();
 }
 
-term.onSelectionChange(() => {
-  console.log('onSelectionChange', term.getSelection());
-});
+// term.onSelectionChange(() => {
+//   console.log('onSelectionChange', term.getSelection());
+// });
+
+term.onScroll((e) => { 
+  console.log('onScroll', e);
+  return false;
+ });
+
 
 term.open(document.getElementById('terminal'));
 fitAddon.fit();
 
 term.write(PROMPT)
+
+const frame = new TermFrame(term,1,1,10,20);
+frame.draw();
+
 term.focus();
 
+term.attachCustomWheelEventHandler(ev => {
+  // TODO:
+  return false;
+});
+
 term.attachCustomKeyEventHandler((key) => {
+  if (key.type != 'keydown') return false
+
   // allows copy/paste to work
   if (key.ctrlKey || key.metaKey || key.altKey) {
-    return false;
   } else if (key.code == 'ArrowLeft') {
-    return true;
+    frame.keyLeft()
   } else if (key.code == 'ArrowRight') {
-    return true;
+    frame.keyRight()
   } else if (key.code == 'ArrowUp') {
-    return cmd.up()
+    frame.keyUp()
   } else if (key.code == 'ArrowDown') {
-    return cmd.down()
+    frame.keyDown();
+  } else if (key.code == 'Tab') {
+    key.preventDefault()
+    if (key.shiftKey) {
+      frame.keyShiftTab()
+    } else {
+      frame.keyTab()
+    }
+  } else if (key.code == 'Backspace') {
+    frame.keyBackspace()
+  } else if (key.code == 'Delete') {
+    frame.keyDelete()
+  } else if (key.code == 'Enter') {
+    frame.keyEnter()
+  } else {
+    return true;
   }
-  return true;
+  return false
 });
 
 const globalPrototype = global()
@@ -129,6 +162,17 @@ Object.values(globalPrototype.console).forEach((v) => v.toString = NATIVE)
 globalPrototype.db = new mongo.DB();
 globalPrototype.db.toString = NATIVE
 Object.values(globalPrototype.db).forEach((v) => v.toString = NATIVE)
+
+class ObjectId {
+  constructor(s) {
+    this.id = s ? s : Math.random().toString(36).substring(7);
+  }
+  toString() {
+    return this.id;
+  }
+}
+globalPrototype.ObjectId = function (s) { return new ObjectId(s); }
+globalPrototype.ISODate = function (s) { return new Date(s); }
 
 const sval = new Sval({
   ecmaVer: 'latest',
@@ -168,10 +212,9 @@ async function execCommand(astOrString) {
   cmd.edited = false;
 
   try {
-    const res = `${await sval.run(astOrString)}`
-    if (res !== 'undefined') {
-      term.write(res);
-      term.write('\r\n')
+    const res = await sval.run(astOrString)
+    if (res !== undefined) {
+      globalPrototype.console.log(res);
     }
   } catch (e) {
     term.write(`\x1b[1;31m${String(e)}\x1b[0m\r\n`)
@@ -180,6 +223,9 @@ async function execCommand(astOrString) {
 }
 
 term.onData(async e => {
+
+  frame.insert(e)
+  return
 
   if (e === '\r') {
 
@@ -243,19 +289,22 @@ term.onData(async e => {
       }      
       term.write(PROMPTX)
     }
-  } else if (e === '\x7F') {
-    cmd.backspace()
-  } else if (e === '\x1b[3~') {
-    cmd.delete()
-  } else if (e == MOVE_LEFT) {
-    cmd.left()
-  } else if (e == MOVE_RIGHT) {
-    cmd.right()
+  // } else if (e === '\x7F') {
+  //   cmd.backspace()
+  // } else if (e === '\x1b[3~') {
+  //   cmd.delete()
+  // } else if (e == MOVE_LEFT) {
+  //   cmd.left()
+  // } else if (e == MOVE_RIGHT) {
+  //   cmd.right()
+  // } else if (e == '\t') {
+  //   console.log(e)
+  // } else if (e == '\x1b[Z') {
+  //   console.log(e)
   } else {
+    console.log(e)
     cmd.insert(e)
   }
-
-  console.log(cmd)
 })
 
 
