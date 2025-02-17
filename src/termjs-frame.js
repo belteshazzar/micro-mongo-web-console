@@ -1,168 +1,270 @@
 
 export class TermFrame {
-  constructor(term, top, left, height, width) {
+  
+  constructor(term, top, left, height, width, lines) {
     this.term = term;
-    this.top = top;
-    this.left = left;
-    this.height = height;
-    this.width = width;
-    this.x = 1;
-    this.y = 1;
-    this.lines = [...Array(50)].map((v, i) => `line ${i + 1} of 50`);
-    this.maxLineLength = this.lines[this.lines.length - 1].length + 1;
-    this.lineAtTop = 0;
-    this.scrollX = 1;
-    this.scrollY = 1;
-    this.charAtLeft = 0;
-    this.keyTime = Date.now()
-    this.keyInterval = 100
+
+    this.doc = {
+      lines: lines,
+      maxLineLength: 0,
+      pos: {
+        line: 0,
+        char: 0
+      }
+    }
+
+    this.display = {
+      top: top,
+      left: left,
+      height: height,
+      width: width,
+      scroll: {
+        charAtLeft: 0,
+        lineAtTop: 0,
+        x: 1,
+        y: 1,
+      },
+      cursor: {
+        x: 1,
+        y: 1
+      }
+    }
+
+    this._calcMaxLineLength()
+    this.drawFrame = true
+  }
+
+  _calcMaxLineLength() {
+    this.doc.maxLineLength = this.doc.lines.map((v) => v.length).reduce((len,max) => Math.max(len,max),0)
   }
 
   draw() {
+    // console.log(this)
     // clear screen
     this.term.write(`\x1B[2J`);
 
-    // corners
-    this.term.write(`\x1b[${this.top};${this.left}H\u250f`);
-    this.term.write(`\x1b[${this.top};${this.left + this.width - 1}H\u2513`);
-    this.term.write(`\x1b[${this.top + this.height - 1};${this.left}H\u2517`);
-    this.term.write(`\x1b[${this.top + this.height - 1};${this.left + this.width - 1}H\u251b`);
+    if (this.drawFrame) {
+      // corners
+      this.term.write(`\x1b[${this.display.top};${this.display.left}H\u250f`);
+      this.term.write(`\x1b[${this.display.top};${this.display.left + this.display.width - 1}H\u2513`);
+      this.term.write(`\x1b[${this.display.top + this.display.height - 1};${this.display.left}H\u2517`);
+      this.term.write(`\x1b[${this.display.top + this.display.height - 1};${this.display.left + this.display.width - 1}H\u251b`);
 
-    // top/bottom
-    for (let i = 1; i < this.width - 1; i++) {
-      this.term.write(`\x1b[${this.top};${this.left + i}H\u2501`);
-      this.term.write(`\x1b[${this.top + this.height - 1};${this.left + i}H\u2501`);
+      // top/bottom
+      for (let i = 1; i < this.display.width - 1; i++) {
+        this.term.write(`\x1b[${this.display.top};${this.display.left + i}H\u2501`);
+        this.term.write(`\x1b[${this.display.top + this.display.height - 1};${this.display.left + i}H\u2501`);
+      }
+
+      // left/right
+      for (let i = 1; i < this.display.height - 1; i++) {
+        this.term.write(`\x1b[${this.display.top + i};${this.display.left}H\u2503`);
+        this.term.write(`\x1b[${this.display.top + i};${this.display.left + this.display.width - 1}H\u2503`);
+      }
+
+      // scroll bar
+      this.term.write(`\x1b[${this.display.top + this.display.scroll.y};${this.display.left + this.display.width - 1}H\u2507`);
+      this.term.write(`\x1b[${this.display.top + this.display.height - 1};${this.display.left + this.display.scroll.x}H\u2505`);
     }
-
-    // left/right
-    for (let i = 1; i < this.height - 1; i++) {
-      this.term.write(`\x1b[${this.top + i};${this.left}H\u2503`);
-      this.term.write(`\x1b[${this.top + i};${this.left + this.width - 1}H\u2503`);
-    }
-
-    // scroll bar
-    this.term.write(`\x1b[${this.top + this.scrollY};${this.left + this.width - 1}H\u2507`);
-    this.term.write(`\x1b[${this.top + this.height - 1};${this.left + this.scrollX}H\u2505`);
 
     // lines
-    for (let i = 1; i < this.height - 1; i++) {
-      for (let j = 1; j < this.width - 1 && j < this.lines[this.lineAtTop + i - 1].length + 1 - this.charAtLeft; j++) {
-        this.term.write(`\x1b[${this.top + i};${this.left + j}H`);
-        this.term.write(this.lines[this.lineAtTop + i - 1][this.charAtLeft + j - 1]);
+    for (let i = 1; i < this.display.height - 1; i++) {
+      for (let j = 1; j < this.display.width - 1 && j < this.doc.lines[this.display.scroll.lineAtTop + i - 1].length + 1 - this.display.scroll.charAtLeft; j++) {
+        this.term.write(`\x1b[${this.display.top + i};${this.display.left + j}H`);
+        this.term.write(this.doc.lines[this.display.scroll.lineAtTop + i - 1][this.display.scroll.charAtLeft + j - 1])
       }
     }
 
     // cursor pos
-    this.term.write(`\x1b[${this.top + this.y};${this.left + this.x}H`);
+    this.term.write(`\x1b[${this.display.top + this.display.cursor.y};${this.display.left + this.display.cursor.x}H`);
+  }
+
+  _updateScrollX() {
+    if (this.display.scroll.charAtLeft == 0) {
+      this.display.scroll.x = 1;
+    } else if (this.display.scroll.charAtLeft == this.doc.maxLineLength - this.display.width + 2) {
+      this.display.scroll.x = this.display.width - 2;
+    } else {
+      this.display.scroll.x = 2 + Math.floor((this.display.scroll.charAtLeft / (this.doc.maxLineLength - this.display.width + 2)) * (this.display.width - 4));
+    }
   }
 
   _updateScrollY() {
-    if (this.lineAtTop == 0) {
-      this.scrollY = 1;
-    } else if (this.lineAtTop == this.lines.length - this.height + 2) {
-      this.scrollY = this.height - 2;
+    if (this.display.scroll.lineAtTop == 0) {
+      this.display.scroll.y = 1;
+    } else if (this.display.scroll.lineAtTop == this.doc.lines.length - this.display.height + 2) {
+      this.display.scroll.y = this.display.height - 2;
     } else {
-      this.scrollY = 2 + Math.floor((this.lineAtTop / (this.lines.length - this.height + 2)) * (this.height - 4));
+      this.display.scroll.y = 2 + Math.floor((this.display.scroll.lineAtTop / (this.doc.lines.length - this.display.height + 2)) * (this.display.height - 4));
+    }
+  }
+
+  _updateDisplay() {
+    // check if doc.pos.char is past end of line
+    if (this.doc.pos.char > this.doc.lines[this.doc.pos.line].length) {
+      const xDelta = this.doc.pos.char - this.doc.lines[this.doc.pos.line].length
+      this.doc.pos.char = this.doc.lines[this.doc.pos.line].length
+      this.display.cursor.x -= xDelta
+    }
+
+    // update cursor.x
+    this.display.cursor.x = this.doc.pos.char-this.display.scroll.charAtLeft+1
+
+    // update cursor.y
+    this.display.cursor.y = this.doc.pos.line-this.display.scroll.lineAtTop+1
+
+    // update horizontal scroll
+    if (this.display.cursor.x < 1) {
+      const scrollDelta = 1-this.display.cursor.x
+      this.display.cursor.x = 1;
+      this.display.scroll.charAtLeft = Math.max(0, this.display.scroll.charAtLeft - scrollDelta);
+      this._updateScrollX()
+    } else if (this.display.cursor.x > this.display.width - 2) {
+      const scrollDelta = this.display.cursor.x - (this.display.width - 2);
+      this.display.cursor.x = this.display.width - 2;
+      const lineLength = this.doc.lines[this.doc.pos.line].length
+      const needsCharAtLeft = Math.min(lineLength + 1 - this.display.width + 2, this.display.scroll.charAtLeft + scrollDelta);
+      if (needsCharAtLeft>this.display.scroll.charAtLeft) {
+        this.display.scroll.charAtLeft = needsCharAtLeft
+      }
+      this._updateScrollX()
+    }
+
+    // update vertical scroll
+    if (this.display.cursor.y < 1) {
+      const scrollDelta = 1-this.display.cursor.y
+      this.display.cursor.y = 1;
+      this.display.scroll.lineAtTop = Math.max(0, this.display.scroll.lineAtTop - scrollDelta);
+      this._updateScrollY()
+    } else if (this.display.cursor.y > this.display.height - 2) {
+      const scrollDelta = this.display.cursor.y - (this.display.height - 2);
+      this.display.cursor.y = this.display.height - 2;
+      this.display.scroll.lineAtTop = Math.min(this.doc.lines.length - this.display.height + 2, this.display.scroll.lineAtTop + scrollDelta);
+      this._updateScrollY()
     }
   }
 
   keyUp() {
+    if (this.doc.pos.line == 0) return
+    this.doc.pos.line--
 
-    this.y--;
-    if (this.y < 1) {
-      this.y = 1;
-      this.lineAtTop = Math.max(0, this.lineAtTop - 1);
-      this._updateScrollY()
-    }
+    this._updateDisplay()
     this.draw();
   }
 
   keyDown() {
-    this.y++;
-    if (this.y > this.height - 2) {
-      this.y = this.height - 2;
-      this.lineAtTop = Math.min(this.lines.length - this.height + 2, this.lineAtTop + 1);
-      this._updateScrollY()
-    }
+    if (this.doc.pos.line == this.doc.lines.length-1) return
+    this.doc.pos.line++
+
+    this._updateDisplay()
     this.draw();
   }
 
-  _updateScrollX() {
-    if (this.charAtLeft == 0) {
-      this.scrollX = 1;
-    } else if (this.charAtLeft == this.maxLineLength - this.width + 2) {
-      this.scrollX = this.width - 2;
-    } else {
-      this.scrollX = 2 + Math.floor((this.charAtLeft / (this.maxLineLength - this.width + 2)) * (this.width - 4));
-    }
-  }
-
   keyRight() {
-    const lineLength = this.lines[this.lineAtTop+this.y-1].length
-    this.x = Math.min(lineLength+1-this.charAtLeft,this.x+1)
+    if (this.doc.pos.char == this.doc.lines[this.doc.pos.line].length) return
+    this.doc.pos.char++
 
-    if (this.x > this.width - 2) {
-      this.x = this.width - 2;
-
-      const needsCharAtLeft = Math.min(lineLength + 1 - this.width + 2, this.charAtLeft + 1);
-      if (needsCharAtLeft>this.charAtLeft) {
-        this.charAtLeft = needsCharAtLeft
-      }
-
-      this._updateScrollX()
-    }
+    this._updateDisplay()
     this.draw();
   }
 
   keyLeft() {
-    this.x--; // = Math.max(1,this.x-1)
-    if (this.x < 1) {
-      this.x = 1;
-      this.charAtLeft = Math.max(0, this.charAtLeft - 1);
+    if (this.doc.pos.char == 0) return
+    this.doc.pos.char--
 
-      this._updateScrollX()
-    }
+    this._updateDisplay()
     this.draw();
   }
 
   keyTab() {
-    this.draw();
-    // this.term.write('\t')
+    this.insert('  ')
   }
 
   keyShiftTab() {
-    this.draw();
-    // this.term.write('\x1b[Z')
+    let ln = this.doc.lines[this.doc.pos.line]
+    if (ln.length>2 && ln[0]==' ' && ln[1]==' ') {
+      this.doc.lines[this.doc.pos.line] = ln.substring(2)
+      this.doc.pos.char -= 2
+      this._updateDisplay()
+      this.draw();
+    }
   }
 
   keyBackspace() {
-    this.draw();
-    // this.term.write('bs')
+    if (this.doc.lines[this.doc.pos.line].length > 0 && this.doc.pos.char > 0) {
+      this.doc.pos.char--
+      const left = this.doc.lines[this.doc.pos.line].substring(0,this.doc.pos.char)
+      const rightNow = this.doc.lines[this.doc.pos.line].substring(this.doc.pos.char+1)
+      this.doc.lines[this.doc.pos.line] = left + rightNow
+
+      this._calcMaxLineLength()
+      this._updateDisplay()
+      this.draw();
+    } else if (this.doc.pos.char==0 && this.doc.pos.line>0) {
+      // backspace at beginning of line, join onto previous line
+      const left = this.doc.lines[this.doc.pos.line-1]
+      const right = this.doc.lines[this.doc.pos.line]
+      this.doc.lines[this.doc.pos.line-1] = left + right
+      this.doc.lines.splice(this.doc.pos.line,1)
+      this.doc.pos.line--
+      this.doc.pos.char = left.length
+
+      this._calcMaxLineLength()
+      this._updateDisplay()
+      this.draw();
+    }
   }
 
   keyDelete() {
-    this.draw();
-    // this.term.write('del')
+    if (this.doc.lines[this.doc.pos.line].length > 0 && this.doc.pos.char < this.doc.lines[this.doc.pos.line].length) {
+      const left = this.doc.lines[this.doc.pos.line].substring(0,this.doc.pos.char)
+      const rightNow = this.doc.lines[this.doc.pos.line].substring(this.doc.pos.char+1)
+      this.doc.lines[this.doc.pos.line] = left + rightNow
+
+      this._calcMaxLineLength()
+      this._updateDisplay()
+      this.draw();
+    } else if (this.doc.pos.char == this.doc.lines[this.doc.pos.line].length && this.doc.pos.line < this.doc.lines.length-1) {
+      const left = this.doc.lines[this.doc.pos.line]
+      const right = this.doc.lines[this.doc.pos.line+1]
+      this.doc.lines[this.doc.pos.line] = left + right
+      this.doc.lines.splice(this.doc.pos.line+1,1)
+
+      this._calcMaxLineLength()
+      this._updateDisplay()
+      this.draw();
+    }    
   }
 
   keyEnter() {
+    const left  = this.doc.lines[this.doc.pos.line].substring(0,this.doc.pos.char)
+    const right = this.doc.lines[this.doc.pos.line].substring(this.doc.pos.char)
+    this.doc.lines[this.doc.pos.line] = left
+    this.doc.pos.line++
+    this.doc.lines.splice(this.doc.pos.line,0,right)
+    this.doc.pos.char = 0
+
+    this._calcMaxLineLength()
+    this._updateDisplay()
     this.draw();
-    // this.term.write('\r\n')
   }
 
   insert(e) {
-    this.lines[this.lineAtTop + this.y - 1] = this.lines[this.lineAtTop + this.y - 1].substring(0, this.charAtLeft + this.x - 1) + e + this.lines[this.lineAtTop + this.y - 1].substring(this.charAtLeft + this.x - 1);
-    this.maxLineLength = Math.max(this.maxLineLength, this.lines[this.lineAtTop + this.y - 1].length + 1);
-    this.x++;
+    const lns = e.split('\r')
+    const left  = this.doc.lines[this.doc.pos.line].substring(0,this.doc.pos.char)
+    const right = this.doc.lines[this.doc.pos.line].substring(this.doc.pos.char)
+    this.doc.lines[this.doc.pos.line] = left + lns[0]
 
-    if (this.x > this.width - 2) {
-      this.x = this.width - 2;
-      this.charAtLeft = Math.min(this.maxLineLength - this.width + 2, this.charAtLeft + 1);
-
-      this._updateScrollX()
+    for (let i=1 ; i<lns.length ; i++) {
+      this.doc.pos.line++
+      this.doc.lines.splice(this.doc.pos.line,0,lns[i])
     }
+  
+    this.doc.pos.char = this.doc.lines[this.doc.pos.line].length
+    this.doc.lines[this.doc.pos.line] += right
 
+    this._calcMaxLineLength()
+    this._updateDisplay()
     this.draw();
-    // this.term.write(e)
   }
 }

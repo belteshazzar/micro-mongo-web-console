@@ -90,7 +90,9 @@ fitAddon.fit();
 
 term.write(PROMPT)
 
-const frame = new TermFrame(term,1,1,10,20);
+let doc = [...Array(50)].map((v, i) => `line ${i + 1} of 50`)
+doc[2] += ' this is the longest line'
+const frame = new TermFrame(term,1,1,10,20,doc);
 frame.draw();
 
 term.focus();
@@ -126,6 +128,9 @@ term.attachCustomKeyEventHandler((key) => {
     frame.keyDelete()
   } else if (key.code == 'Enter') {
     frame.keyEnter()
+  } else if(key.code == 'Space') {
+    // TODO: not sure why this is needed
+    frame.insert(' ')
   } else {
     return true;
   }
