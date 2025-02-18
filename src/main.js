@@ -90,7 +90,7 @@ fitAddon.fit();
 
 term.write(PROMPT)
 
-let doc = [...Array(50)].map((v, i) => `line ${i + 1} of 50`)
+let doc = [...Array(50)].map((v, i) => `\x1b[1;34m$\x1b[0m line ${i + 1} of 50`)
 doc[2] += ' this is the longest line'
 const frame = new TermFrame(term,1,1,10,20,doc);
 frame.draw();
@@ -116,7 +116,7 @@ term.attachCustomKeyEventHandler((key) => {
   } else if (key.code == 'ArrowDown') {
     frame.keyDown();
   } else if (key.code == 'Tab') {
-    key.preventDefault()
+    // key.preventDefault()
     if (key.shiftKey) {
       frame.keyShiftTab()
     } else {
@@ -134,6 +134,7 @@ term.attachCustomKeyEventHandler((key) => {
   } else {
     return true;
   }
+  key.preventDefault()
   return false
 });
 
