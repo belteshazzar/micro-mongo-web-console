@@ -1,20 +1,15 @@
+
 import './style.css'
 import '@xterm/xterm/css/xterm.css'
 import 'highlight.js/styles/github.css'
 import 'highlightjs-copy/styles/highlightjs-copy.css'
 
+import theme from './ansi-hljs-theme.js'
+import colorize from './ansi-hljs.js'
+
 import hljs from 'highlight.js/lib/core';
 import javascript from 'highlight.js/lib/languages/javascript';
 import CopyButtonPlugin from 'highlightjs-copy';
-
-hljs.addPlugin(
-  new CopyButtonPlugin({
-    autohide: false, // Always show the copy button
-  })
-);
-hljs.registerLanguage('javascript', javascript);
-hljs.highlightAll();
-
 import { Terminal } from '@xterm/xterm/lib/xterm.js'
 import { FitAddon } from '@xterm/addon-fit';
 import Sval from './sval-fork.js';
@@ -23,6 +18,15 @@ import termConsole from './termjs-console.js'
 import mongo from 'mongols'
 import termCommand from './termjs-command.js'
 import { TermFrame } from './termjs-frame.js';
+import stripAnsi from 'strip-ansi'
+
+hljs.addPlugin(
+  new CopyButtonPlugin({
+    autohide: false, // Always show the copy button
+  })
+);
+hljs.registerLanguage('javascript', javascript);
+hljs.highlightAll();
 
 const PROMPT = '\x1b[1;34m$\x1b[0m '
 const PROMPTX = '\x1b[1;34m|\x1b[0m '
@@ -90,8 +94,15 @@ fitAddon.fit();
 
 term.write(PROMPT)
 
+let x = hljs.highlight(`let x = { name: "fred", v`, {language: 'javascript', ignoreIllegals: true})
+let y = colorize(x.value,theme)
+
+
 let doc = [...Array(50)].map((v, i) => `\x1b[1;34m$\x1b[0m line ${i + 1} of 50`)
 doc[2] += ' this is the longest line'
+doc[1] = y
+
+
 const frame = new TermFrame(term,1,1,10,20,doc);
 frame.draw();
 

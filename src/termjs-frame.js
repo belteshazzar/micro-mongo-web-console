@@ -37,7 +37,7 @@ export class TermFrame {
     }
 
     this.drawFrame = true
-    this.wrap = true
+    this.wrap = false
 
     this._updateRows()
     this._calcMaxRowLength()
