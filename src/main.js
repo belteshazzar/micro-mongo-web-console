@@ -95,7 +95,7 @@ fitAddon.fit();
 term.write(PROMPT)
 
 let x = hljs.highlight(`let x = { name: "fred", v`, {language: 'javascript', ignoreIllegals: true})
-let y = colorize(x.value,theme)
+let y = colorize(x.value,{theme})
 
 
 let doc = [...Array(50)].map((v, i) => `\x1b[1;34m$\x1b[0m line ${i + 1} of 50`)
@@ -120,14 +120,16 @@ term.attachCustomKeyEventHandler((key) => {
   if (key.ctrlKey || key.metaKey || key.altKey) {
   } else if (key.code == 'ArrowLeft') {
     frame.keyLeft()
+    key.preventDefault()
   } else if (key.code == 'ArrowRight') {
     frame.keyRight()
+    key.preventDefault()
   } else if (key.code == 'ArrowUp') {
     frame.keyUp()
   } else if (key.code == 'ArrowDown') {
     frame.keyDown();
   } else if (key.code == 'Tab') {
-    // key.preventDefault()
+    key.preventDefault()
     if (key.shiftKey) {
       frame.keyShiftTab()
     } else {
@@ -145,7 +147,6 @@ term.attachCustomKeyEventHandler((key) => {
   } else {
     return true;
   }
-  key.preventDefault()
   return false
 });
 
