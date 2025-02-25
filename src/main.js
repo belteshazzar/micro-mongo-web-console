@@ -17,8 +17,8 @@ import global from './global.js'
 import termConsole from './termjs-console.js'
 import mongo from 'mongols'
 import termCommand from './termjs-command.js'
-import { TermFrame } from './termjs-frame.js';
-import stripAnsi from 'strip-ansi'
+import { TermShell } from './termjs-shell.js';
+// import stripAnsi from 'strip-ansi'
 
 hljs.addPlugin(
   new CopyButtonPlugin({
@@ -32,8 +32,8 @@ const PROMPT = '\x1b[1;34m$\x1b[0m '
 const PROMPTX = '\x1b[1;34m|\x1b[0m '
 const ERASE_TO_END = '\x1b[0K'
 const MOVE_UP = '\x1b[A'
-const MOVE_RIGHT = '\x1b[C'
-const MOVE_LEFT = '\x1b[D'
+// const MOVE_RIGHT = '\x1b[C'
+// const MOVE_LEFT = '\x1b[D'
 
 const NATIVE = function() { return '#native'; }
 
@@ -92,7 +92,7 @@ term.onScroll((e) => {
 term.open(document.getElementById('terminal'));
 fitAddon.fit();
 
-term.write(PROMPT)
+//term.write(PROMPT)
 
 let x = hljs.highlight(`let x = { name: "fred", v`, {language: 'javascript', ignoreIllegals: true})
 let y = colorize(x.value,{theme})
@@ -103,7 +103,15 @@ doc[2] += ' this is the longest line'
 doc[1] = y
 
 
-const frame = new TermFrame(term,1,1,10,20,doc);
+const frame = new TermShell(term,{
+  top: 1,
+  left: 1,
+  height: term.rows,
+  width: term.cols,
+  lines: doc,
+  drawFrame: true,
+  wrap: true
+});
 frame.draw();
 
 term.focus();

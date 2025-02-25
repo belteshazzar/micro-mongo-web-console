@@ -1,12 +1,20 @@
-import chalk from 'chalk';
+
 import sliceAnsi from 'slice-ansi';
 import stripAnsi from 'strip-ansi';
 
 // TODO: remove stripAnsi calls for length
 
-export class TermFrame {
+export class TermShell {
 
-  constructor(term, top, left, height, width, lines) {
+  constructor(term, {
+      top=1, 
+      left=1, 
+      height=10, 
+      width=20, 
+      lines=[], 
+      drawFrame=true,
+      wrap=false }) {
+
     this.term = term;
 
     this.doc = {
@@ -36,14 +44,13 @@ export class TermFrame {
       }
     }
 
-    this.drawFrame = true
-    this.wrap = false
+    this.drawFrame = drawFrame
+    this.wrap = wrap
 
-    this._updateRows()
-    this._calcMaxRowLength()
+    this._setRowsFromLines()
   }
 
-  _updateRows() {
+  _setRowsFromLines() {
     const w = this.display.width - 2
     this.doc.rows = []
     for (let i = 0; i < this.doc.lines.length; i++) {
@@ -62,9 +69,11 @@ export class TermFrame {
         }
       }
     }
+
+    this._updateMaxRowLength()
   }
 
-  _calcMaxRowLength() {
+  _updateMaxRowLength() {
     if (this.wrap) {
       this.doc.maxRowLength = this.display.width - 2
     } else {
@@ -73,7 +82,7 @@ export class TermFrame {
   }
 
   draw() {
-    // console.log(this)
+//    console.log(this.display.cursor,this.doc.pos)
     // clear screen
     this.term.write(`\x1B[2J`);
 
@@ -133,17 +142,39 @@ export class TermFrame {
 
   _updateDisplay() {
     // check if doc.pos.char is past end of line
-    if (this.doc.pos.char > stripAnsi(this.doc.rows[this.doc.pos.line].text).length) {
-      const xDelta = this.doc.pos.char - stripAnsi(this.doc.rows[this.doc.pos.line].text).length
-      this.doc.pos.char = stripAnsi(this.doc.rows[this.doc.pos.line].text).length
-      this.display.cursor.x -= xDelta
+    if (this.doc.pos.char > stripAnsi(this.doc.lines[this.doc.pos.line]).length) {
+      //const xDelta = this.doc.pos.char - stripAnsi(this.doc.rows[this.doc.pos.line].text).length
+      this.doc.pos.char = stripAnsi(this.doc.lines[this.doc.pos.line]).length
+      //this.display.cursor.x -= xDelta
     }
 
-    // update cursor.x
-    this.display.cursor.x = this.doc.pos.char - this.display.scroll.charAtLeft + 1
+    // update cursor based on pos
+    if (this.wrap) {
 
-    // update cursor.y
-    this.display.cursor.y = this.doc.pos.line - this.display.scroll.lineAtTop + 1
+      // find the row for this line
+      let r=-1
+      for (let i=0 ; i<this.doc.rows.length ; i++) {
+        if (this.doc.rows[i].line == this.doc.pos.line) {
+          r = i
+          break
+        }
+      }
+
+      // find offset in the rows of this line
+      let c = this.doc.pos.char
+      r += Math.floor(c/(this.display.width-2))
+      c = c % (this.display.width-2)
+
+      // update cursor.x
+      this.display.cursor.x = c - this.display.scroll.charAtLeft + 1
+
+      // update cursor.y
+      this.display.cursor.y = r - this.display.scroll.lineAtTop + 1
+
+    } else {
+      this.display.cursor.x = this.doc.pos.char - this.display.scroll.charAtLeft + 1
+      this.display.cursor.y = this.doc.pos.line - this.display.scroll.lineAtTop + 1
+    }
 
     // update horizontal scroll
     if (this.display.cursor.x < 1) {
@@ -154,8 +185,8 @@ export class TermFrame {
     } else if (this.display.cursor.x > this.display.width - 2) {
       const scrollDelta = this.display.cursor.x - (this.display.width - 2);
       this.display.cursor.x = this.display.width - 2;
-      const lineLength = stripAnsi(this.doc.rows[this.doc.pos.line].text).length
-      const needsCharAtLeft = Math.min(lineLength + 1 - this.display.width + 2, this.display.scroll.charAtLeft + scrollDelta);
+      const rowLength = stripAnsi(this.doc.rows[this.display.cursor.y].text).length
+      const needsCharAtLeft = Math.min(rowLength - this.display.width + 2, this.display.scroll.charAtLeft + scrollDelta);
       if (needsCharAtLeft > this.display.scroll.charAtLeft) {
         this.display.scroll.charAtLeft = needsCharAtLeft
       }
@@ -185,7 +216,7 @@ export class TermFrame {
   }
 
   keyDown() {
-    if (this.doc.pos.line == this.doc.rows.length - 1) return
+    if (this.doc.pos.line == this.doc.lines.length - 1) return
     this.doc.pos.line++
 
     this._updateDisplay()
@@ -193,9 +224,9 @@ export class TermFrame {
   }
 
   keyRight() {
-    if (this.doc.pos.char != stripAnsi(this.doc.rows[this.doc.pos.line].text).length) {
+    if (this.doc.pos.char != stripAnsi(this.doc.lines[this.doc.pos.line]).length) {
       this.doc.pos.char++
-    } else if (this.doc.pos.char == stripAnsi(this.doc.rows[this.doc.pos.line].text).length && this.doc.pos.line < this.doc.rows.length - 1) {
+    } else if (this.doc.pos.char == stripAnsi(this.doc.lines[this.doc.pos.line]).length && this.doc.pos.line < this.doc.lines.length - 1) {
       this.doc.pos.line++
       this.doc.pos.char = 0
     } else {
@@ -211,7 +242,7 @@ export class TermFrame {
       this.doc.pos.char--
     } else if (this.doc.pos.char == 0 && this.doc.pos.line > 0) {
       this.doc.pos.line--
-      this.doc.pos.char = stripAnsi(this.doc.rows[this.doc.pos.line].text).length
+      this.doc.pos.char = stripAnsi(this.doc.lines[this.doc.pos.line]).length
     } else {
       return
     }
@@ -225,31 +256,31 @@ export class TermFrame {
   }
 
   keyShiftTab() {
-    let ln = this.doc.rows[this.doc.pos.line].text
+    let ln = this.doc.lines[this.doc.pos.line]
     if (ln.length > 2 && ln[0] == ' ' && ln[1] == ' ') {
-      this.doc.rows[this.doc.pos.line].text = ln.substring(2)
+      this.doc.lines[this.doc.pos.line] = ln.substring(2)
       this.doc.pos.char -= 2
-      this._calcMaxRowLength()
+      this._setRowsFromLines()
       this._updateDisplay()
       this.draw();
     }
   }
 
   keyBackspace() {
-    const row = this.doc.rows[this.doc.pos.line]
+    const line = this.doc.lines[this.doc.pos.line]
 
-    if (stripAnsi(row.text).length > 0 && this.doc.pos.char > 0) {
+    if (stripAnsi(line).length > 0 && this.doc.pos.char > 0) {
       this.doc.pos.char--
-      const left = sliceAnsi(row.text, 0, this.doc.pos.char)
-      const rightNow = sliceAnsi(row.text, this.doc.pos.char + 1)
-      row.text = left + rightNow
+      const left = sliceAnsi(line, 0, this.doc.pos.char)
+      const rightNow = sliceAnsi(line, this.doc.pos.char + 1)
+      this.doc.lines[this.doc.pos.line] = left + rightNow
 
     } else if (this.doc.pos.char == 0 && this.doc.pos.line > 0) {
       // backspace at beginning of line, join onto previous line
-      const left = this.doc.rows[this.doc.pos.line - 1].text
-      const right = row.text
-      this.doc.rows[this.doc.pos.line - 1].text = left + right
-      this.doc.rows.splice(this.doc.pos.line, 1)
+      const left = this.doc.lines[this.doc.pos.line - 1]
+      const right = line
+      this.doc.lines[this.doc.pos.line - 1] = left + right
+      this.doc.lines.splice(this.doc.pos.line, 1)
       this.doc.pos.line--
       this.doc.pos.char = stripAnsi(left).length
 
@@ -257,67 +288,67 @@ export class TermFrame {
       return
     }
 
-    this._calcMaxRowLength()
+    this._setRowsFromLines()
     this._updateDisplay()
     this.draw();
   }
 
   keyDelete() {
-    const row = this.doc.rows[this.doc.pos.line]
+    const line = this.doc.lines[this.doc.pos.line]
 
-    if (stripAnsi(row.text).length > 0 && this.doc.pos.char < stripAnsi(row.text).length) {
-      const left = sliceAnsi(row.text, 0, this.doc.pos.char)
-      const rightNow = sliceAnsi(row.text, this.doc.pos.char + 1)
-      row.text = left + rightNow
+    if (stripAnsi(line).length > 0 && this.doc.pos.char < stripAnsi(line).length) {
+      const left = sliceAnsi(line, 0, this.doc.pos.char)
+      const rightNow = sliceAnsi(line, this.doc.pos.char + 1)
+      this.doc.lines[this.doc.pos.line] = left + rightNow
 
-    } else if (this.doc.pos.char == stripAnsi(row.text).length && this.doc.pos.line < this.doc.rows.length - 1) {
-      const left = row.text
-      const right = this.doc.rows[this.doc.pos.line + 1].text
-      row.text = left + right
-      this.doc.rows.splice(this.doc.pos.line + 1, 1)
+    } else if (this.doc.pos.char == stripAnsi(line).length && this.doc.pos.line < this.doc.lines.length - 1) {
+      const left = line
+      const right = this.doc.lines[this.doc.pos.line + 1]
+      this.doc.lines[this.doc.pos.line] = left + right
+      this.doc.lines.splice(this.doc.pos.line + 1, 1)
 
     } else {
       return
     }
 
-    this._calcMaxRowLength()
+    this._setRowsFromLines()
     this._updateDisplay()
     this.draw();
   }
 
   keyEnter() {
-    const row = this.doc.rows[this.doc.pos.line]
-    const left = sliceAnsi(row.text, 0, this.doc.pos.char)
-    const right = sliceAnsi(row.text, this.doc.pos.char)
+    const line = this.doc.lines[this.doc.pos.line]
+    const left = sliceAnsi(line, 0, this.doc.pos.char)
+    const right = sliceAnsi(line, this.doc.pos.char)
 
-    row.text = left
+    this.doc.lines[this.doc.pos.line] = left
 
     this.doc.pos.line++
-    this.doc.rows.splice(this.doc.pos.line, 0, { line: row.line, text: right })
+    this.doc.lines.splice(this.doc.pos.line, 0, right )
     this.doc.pos.char = 0
 
-    this._calcMaxRowLength()
+    this._setRowsFromLines()
     this._updateDisplay()
     this.draw();
   }
 
   insert(e) {
     const lns = e.split('\r')
-    const row = this.doc.rows[this.doc.pos.line]
-    const left = sliceAnsi(row.text, 0, this.doc.pos.char)
-    const right = sliceAnsi(row.text, this.doc.pos.char)
+    const line = this.doc.lines[this.doc.pos.line]
+    const left = sliceAnsi(line, 0, this.doc.pos.char)
+    const right = sliceAnsi(line, this.doc.pos.char)
 
-    row.text = left + lns[0]
+    this.doc.lines[this.doc.pos.line] = left + lns[0]
 
     for (let i = 1; i < lns.length; i++) {
       this.doc.pos.line++
-      this.doc.rows.splice(this.doc.pos.line, 0, { line: row.line, text: lns[i] })
+      this.doc.lines.splice(this.doc.pos.line, 0, lns[i])
     }
 
-    this.doc.pos.char = stripAnsi(this.doc.rows[this.doc.pos.line].text).length
-    this.doc.rows[this.doc.pos.line].text += right
+    this.doc.pos.char = stripAnsi(this.doc.lines[this.doc.pos.line]).length
+    this.doc.lines[this.doc.pos.line] += right
 
-    this._calcMaxRowLength()
+    this._setRowsFromLines()
     this._updateDisplay()
     this.draw();
   }
