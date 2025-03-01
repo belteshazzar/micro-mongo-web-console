@@ -72,7 +72,8 @@ export default function termConsole(term) {
             term.write(`${indent}\x1b[94mINFO:\x1b[0m ${util_inspect(data)}\x1b[0m\n\r`)
         },
         log: function(data,...args) {
-            term.write(`${indent}${util_inspect(data)}\n\r`)
+          //console.log(data)
+            term.insert(`${indent}${util_inspect(data)}\n\r`)
         },
         profile: function() {},
         profileEnd: function() {},

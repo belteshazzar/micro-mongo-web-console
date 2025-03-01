@@ -4775,7 +4775,7 @@ import {Parser as acorn} from 'acorn';
             //   this.scope.let('globalThis', this.options.globalObject);
             //   this.scope.let('window', this.options.globalObject);
               this.scope.let('this', this.options.globalObject);
-
+console.log(this.options.globalObject)
         //   }
       }
     //   Sval.prototype.import = function (nameOrModules, mod) {

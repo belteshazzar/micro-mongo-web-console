@@ -1,355 +1,263 @@
 
-import sliceAnsi from 'slice-ansi';
-import stripAnsi from 'strip-ansi';
+import { TermDocument } from './termjs-document.js';
+import stripAnsi from 'strip-ansi'
+import Sval from './sval-fork.js';
+import global from './global.js'
 
-// TODO: remove stripAnsi calls for length
+import theme from './ansi-hljs-theme.js'
+import colorize from './ansi-hljs.js'
+import hljs from 'highlight.js/lib/core';
+import javascript from 'highlight.js/lib/languages/javascript';
+hljs.registerLanguage('javascript', javascript);
 
-export class TermShell {
 
-  constructor(term, {
-      top=1, 
-      left=1, 
-      height=10, 
-      width=20, 
-      lines=[], 
-      drawFrame=true,
-      wrap=false }) {
+let x = hljs.highlight(`let x = { name: "fred", v`, {language: 'javascript', ignoreIllegals: true})
+let y = colorize(x.value,{theme})
 
-    this.term = term;
 
-    this.doc = {
-      lines: lines,
-      rows: [],
-      maxRowLength: 0,
-      pos: {
-        line: 0,
-        char: 0
-      }
-    }
+let doc = [...Array(30)].map((v, i) => `\x1b[1;34m$\x1b[0m line ${i + 1} of 50`)
+doc[2] += ' this is the longest line'
+doc[1] = y
 
-    this.display = {
-      top: top,
-      left: left,
-      height: height,
-      width: width,
-      scroll: {
-        charAtLeft: 0,
-        lineAtTop: 0,
-        x: 1,
-        y: 1,
-      },
-      cursor: {
-        x: 1,
-        y: 1
-      }
-    }
+const PROMPT = '\x1b[1;34m$\x1b[0m '
 
-    this.drawFrame = drawFrame
-    this.wrap = wrap
 
-    this._setRowsFromLines()
+const PARSE_ERROR_REGEX = /(.*) \((\d+):(\d+)\)/
+  
+  
+
+export class TermShell extends TermDocument {
+
+  constructor(t,o) {
+    o.lines = doc
+    o.prompt = o.prompt || PROMPT
+    o.lines.push(o.prompt)
+    
+    super(t,o)
+
+    // this.global = global()
+    this.sval = new Sval({
+      ecmaVer: 'latest',
+      sourceType: 'module',
+      globalObject: global()
+    })
+
+this.global = this.sval.options.globalObject
+
+    this.prompt = o.prompt
+    this.promptLength = stripAnsi(this.prompt).length
+
+
+    this.history = ['1','2','3']
+    this.historyPos = -1;
+    this.promptOnLine = this.doc.lines.length-1
+    this._updateDisplay()
+    this.draw()
   }
 
-  _setRowsFromLines() {
-    const w = this.display.width - 2
-    this.doc.rows = []
-    for (let i = 0; i < this.doc.lines.length; i++) {
-      let l = stripAnsi(this.doc.lines[i])
-      if (l.length == 0) {
-        this.doc.rows.push({ line: i, text: '' })
-      } else {
-        if (this.wrap) {
-          let j = 0
-          while (j < l.length) {
-            this.doc.rows.push({ line: i, text: sliceAnsi(this.doc.lines[i], j, j + w) })
-            j += w
-          }
-        } else {
-          this.doc.rows.push({ line: i, text: this.doc.lines[i] })
-        }
+  isCompleteJavascriptStatement(cmd) {
+    try {
+      this.sval.parse(cmd.join('\n'));
+      return true
+    } catch (e) {
+      let m = PARSE_ERROR_REGEX.exec(e.message)
+      if (m && (
+        (cmd.length == m[2] && cmd[cmd.length-1].length == m[3])
+        ||
+        (m[1] == 'Unterminated template'))) {
+          return false;
       }
-    }
-
-    this._updateMaxRowLength()
-  }
-
-  _updateMaxRowLength() {
-    if (this.wrap) {
-      this.doc.maxRowLength = this.display.width - 2
-    } else {
-      this.doc.maxRowLength = this.doc.rows.map((v) => stripAnsi(v.text).length).reduce((len, max) => Math.max(len, max), 0)
-    }
-  }
-
-  draw() {
-//    console.log(this.display.cursor,this.doc.pos)
-    // clear screen
-    this.term.write(`\x1B[2J`);
-
-    if (this.drawFrame) {
-      // corners
-      this.term.write(`\x1b[${this.display.top};${this.display.left}H\u250c`);
-      this.term.write(`\x1b[${this.display.top};${this.display.left + this.display.width - 1}H\u2510`);
-      this.term.write(`\x1b[${this.display.top + this.display.height - 1};${this.display.left}H\u2514`);
-      this.term.write(`\x1b[${this.display.top + this.display.height - 1};${this.display.left + this.display.width - 1}H\u2518`);
-
-      // top/bottom
-      for (let i = 1; i < this.display.width - 1; i++) {
-        this.term.write(`\x1b[${this.display.top};${this.display.left + i}H\u2500`);
-        this.term.write(`\x1b[${this.display.top + this.display.height - 1};${this.display.left + i}H\u2500`);
-      }
-
-      // left/right
-      for (let i = 1; i < this.display.height - 1; i++) {
-        this.term.write(`\x1b[${this.display.top + i};${this.display.left}H\u2502`);
-        this.term.write(`\x1b[${this.display.top + i};${this.display.left + this.display.width - 1}H\u2502`);
-      }
-
-      // scroll bar
-      this.term.write(`\x1b[${this.display.top + this.display.scroll.y};${this.display.left + this.display.width - 1}H\u2506`);
-      this.term.write(`\x1b[${this.display.top + this.display.height - 1};${this.display.left + this.display.scroll.x}H\u2504`);
-    }
-
-    // rows
-    for (let i = 1; i < this.display.height - 1; i++) {
-      this.term.write(`\x1b[${this.display.top + i};${this.display.left + 1}H`);
-      this.term.write(sliceAnsi(this.doc.rows[this.display.scroll.lineAtTop + i - 1].text, this.display.scroll.charAtLeft, this.display.scroll.charAtLeft + this.display.width - 2))
-    }
-
-    // cursor pos
-    this.term.write(`\x1b[${this.display.top + this.display.cursor.y};${this.display.left + this.display.cursor.x}H`);
-  }
-
-  _updateScrollX() {
-    if (this.display.scroll.charAtLeft == 0) {
-      this.display.scroll.x = 1;
-    } else if (this.display.scroll.charAtLeft == this.doc.maxRowLength - this.display.width + 2) {
-      this.display.scroll.x = this.display.width - 2;
-    } else {
-      this.display.scroll.x = 2 + Math.floor((this.display.scroll.charAtLeft / (this.doc.maxRowLength - this.display.width + 2)) * (this.display.width - 4));
-    }
-  }
-
-  _updateScrollY() {
-    if (this.display.scroll.lineAtTop == 0) {
-      this.display.scroll.y = 1;
-    } else if (this.display.scroll.lineAtTop == this.doc.rows.length - this.display.height + 2) {
-      this.display.scroll.y = this.display.height - 2;
-    } else {
-      this.display.scroll.y = 2 + Math.floor((this.display.scroll.lineAtTop / (this.doc.rows.length - this.display.height + 2)) * (this.display.height - 4));
+      throw e;
     }
   }
 
   _updateDisplay() {
-    // check if doc.pos.char is past end of line
-    if (this.doc.pos.char > stripAnsi(this.doc.lines[this.doc.pos.line]).length) {
-      //const xDelta = this.doc.pos.char - stripAnsi(this.doc.rows[this.doc.pos.line].text).length
-      this.doc.pos.char = stripAnsi(this.doc.lines[this.doc.pos.line]).length
-      //this.display.cursor.x -= xDelta
+    this.doc.pos.line = Math.max(this.promptOnLine,this.doc.pos.line)
+    if (this.doc.pos.line == this.promptOnLine) {
+      this.doc.pos.char = Math.max(this.promptLength,this.doc.pos.char)
     }
-
-    // update cursor based on pos
-    if (this.wrap) {
-
-      // find the row for this line
-      let r=-1
-      for (let i=0 ; i<this.doc.rows.length ; i++) {
-        if (this.doc.rows[i].line == this.doc.pos.line) {
-          r = i
-          break
-        }
-      }
-
-      // find offset in the rows of this line
-      let c = this.doc.pos.char
-      r += Math.floor(c/(this.display.width-2))
-      c = c % (this.display.width-2)
-
-      // update cursor.x
-      this.display.cursor.x = c - this.display.scroll.charAtLeft + 1
-
-      // update cursor.y
-      this.display.cursor.y = r - this.display.scroll.lineAtTop + 1
-
-    } else {
-      this.display.cursor.x = this.doc.pos.char - this.display.scroll.charAtLeft + 1
-      this.display.cursor.y = this.doc.pos.line - this.display.scroll.lineAtTop + 1
-    }
-
-    // update horizontal scroll
-    if (this.display.cursor.x < 1) {
-      const scrollDelta = 1 - this.display.cursor.x
-      this.display.cursor.x = 1;
-      this.display.scroll.charAtLeft = Math.max(0, this.display.scroll.charAtLeft - scrollDelta);
-      this._updateScrollX()
-    } else if (this.display.cursor.x > this.display.width - 2) {
-      const scrollDelta = this.display.cursor.x - (this.display.width - 2);
-      this.display.cursor.x = this.display.width - 2;
-      const rowLength = stripAnsi(this.doc.rows[this.display.cursor.y].text).length
-      const needsCharAtLeft = Math.min(rowLength - this.display.width + 2, this.display.scroll.charAtLeft + scrollDelta);
-      if (needsCharAtLeft > this.display.scroll.charAtLeft) {
-        this.display.scroll.charAtLeft = needsCharAtLeft
-      }
-      this._updateScrollX()
-    }
-
-    // update vertical scroll
-    if (this.display.cursor.y < 1) {
-      const scrollDelta = 1 - this.display.cursor.y
-      this.display.cursor.y = 1;
-      this.display.scroll.lineAtTop = Math.max(0, this.display.scroll.lineAtTop - scrollDelta);
-      this._updateScrollY()
-    } else if (this.display.cursor.y > this.display.height - 2) {
-      const scrollDelta = this.display.cursor.y - (this.display.height - 2);
-      this.display.cursor.y = this.display.height - 2;
-      this.display.scroll.lineAtTop = Math.min(this.doc.rows.length - this.display.height + 2, this.display.scroll.lineAtTop + scrollDelta);
-      this._updateScrollY()
-    }
+    super._updateDisplay()
   }
 
   keyUp() {
-    if (this.doc.pos.line == 0) return
-    this.doc.pos.line--
+    if (this.doc.pos.line==this.promptLine) {
+      // if (this.doc.pos.char == this.promptLength) {
+      console.log("previous history")
 
-    this._updateDisplay()
-    this.draw();
+      const oldPos = this.historyPos
+      if (this.historyPos > 0) {
+        this.historyPos--;
+      } else if (this.historyPos < 0) {
+        this.historyPos = this.history.length - 1
+      }
+
+      if (this.historyPos != oldPos) {
+        this.doc.lines[this.doc.lines.length-1] = this.prompt + this.history[this.historyPos]
+        this.doc.pos.char = this.doc.lines[this.doc.lines.length-1].length
+        this._setRowsFromLines()
+      }
+
+      this._updateDisplay()
+      this.draw();
+  
+    } else {
+      super.keyUp();
+    }
   }
 
   keyDown() {
-    if (this.doc.pos.line == this.doc.lines.length - 1) return
-    this.doc.pos.line++
+    if (this.doc.pos.line==this.doc.lines.length-1) {
+      const lineLength = stripAnsi(this.doc.lines[this.doc.pos.line]).length
+      if (this.doc.pos.char == lineLength) {
+        console.log("next history")
 
-    this._updateDisplay()
-    this.draw();
-  }
+        // show next history command
+        const oldPos = this.historyPos;
+        if (this.historyPos>-1) {
+          this.historyPos = Math.min(this.historyPos + 1, this.history.length)
+          if (this.historyPos == this.history.length) {
+            this.historyPos = -1
+          }
+        }
 
-  keyRight() {
-    if (this.doc.pos.char != stripAnsi(this.doc.lines[this.doc.pos.line]).length) {
-      this.doc.pos.char++
-    } else if (this.doc.pos.char == stripAnsi(this.doc.lines[this.doc.pos.line]).length && this.doc.pos.line < this.doc.lines.length - 1) {
-      this.doc.pos.line++
-      this.doc.pos.char = 0
+        if (this.historyPos != oldPos) {
+
+          if (this.historyPos == -1) {
+            this.doc.lines[this.doc.lines.length-1] = this.prompt
+          } else {
+            this.doc.lines[this.doc.lines.length-1] = this.prompt + this.history[this.historyPos]
+          }
+          this.doc.pos.char = this.doc.lines[this.doc.lines.length-1].length
+          this._setRowsFromLines()
+        }
+
+      } else {
+        this.doc.pos.char = lineLength
+      }
+
+      this._updateDisplay()
+      this.draw();
+  
     } else {
-      return
+      super.keyDown()
     }
-
-    this._updateDisplay()
-    this.draw();
-  }
-
-  keyLeft() {
-    if (this.doc.pos.char > 0) {
-      this.doc.pos.char--
-    } else if (this.doc.pos.char == 0 && this.doc.pos.line > 0) {
-      this.doc.pos.line--
-      this.doc.pos.char = stripAnsi(this.doc.lines[this.doc.pos.line]).length
-    } else {
-      return
-    }
-
-    this._updateDisplay()
-    this.draw();
   }
 
   keyTab() {
-    this.insert('  ')
+    super.keyTab()
   }
 
   keyShiftTab() {
-    let ln = this.doc.lines[this.doc.pos.line]
-    if (ln.length > 2 && ln[0] == ' ' && ln[1] == ' ') {
-      this.doc.lines[this.doc.pos.line] = ln.substring(2)
-      this.doc.pos.char -= 2
-      this._setRowsFromLines()
-      this._updateDisplay()
-      this.draw();
-    }
+    super.keyShiftTab()
   }
 
   keyBackspace() {
-    const line = this.doc.lines[this.doc.pos.line]
-
-    if (stripAnsi(line).length > 0 && this.doc.pos.char > 0) {
-      this.doc.pos.char--
-      const left = sliceAnsi(line, 0, this.doc.pos.char)
-      const rightNow = sliceAnsi(line, this.doc.pos.char + 1)
-      this.doc.lines[this.doc.pos.line] = left + rightNow
-
-    } else if (this.doc.pos.char == 0 && this.doc.pos.line > 0) {
-      // backspace at beginning of line, join onto previous line
-      const left = this.doc.lines[this.doc.pos.line - 1]
-      const right = line
-      this.doc.lines[this.doc.pos.line - 1] = left + right
-      this.doc.lines.splice(this.doc.pos.line, 1)
-      this.doc.pos.line--
-      this.doc.pos.char = stripAnsi(left).length
-
-    } else {
-      return
-    }
-
-    this._setRowsFromLines()
-    this._updateDisplay()
-    this.draw();
+    super.keyBackspace()
   }
 
   keyDelete() {
-    const line = this.doc.lines[this.doc.pos.line]
-
-    if (stripAnsi(line).length > 0 && this.doc.pos.char < stripAnsi(line).length) {
-      const left = sliceAnsi(line, 0, this.doc.pos.char)
-      const rightNow = sliceAnsi(line, this.doc.pos.char + 1)
-      this.doc.lines[this.doc.pos.line] = left + rightNow
-
-    } else if (this.doc.pos.char == stripAnsi(line).length && this.doc.pos.line < this.doc.lines.length - 1) {
-      const left = line
-      const right = this.doc.lines[this.doc.pos.line + 1]
-      this.doc.lines[this.doc.pos.line] = left + right
-      this.doc.lines.splice(this.doc.pos.line + 1, 1)
-
-    } else {
-      return
-    }
-
-    this._setRowsFromLines()
-    this._updateDisplay()
-    this.draw();
+    super.keyDelete()
   }
 
   keyEnter() {
-    const line = this.doc.lines[this.doc.pos.line]
-    const left = sliceAnsi(line, 0, this.doc.pos.char)
-    const right = sliceAnsi(line, this.doc.pos.char)
+    super.keyEnter()
 
-    this.doc.lines[this.doc.pos.line] = left
+    const that = this
 
-    this.doc.pos.line++
-    this.doc.lines.splice(this.doc.pos.line, 0, right )
-    this.doc.pos.char = 0
+    async function execCommand(cmd) {
+  
+      // cmd.historyPos = -1;
+      // cmd.lines = [''];
+      // cmd.x = 0;
+      // cmd.y = 0;
+      // cmd.edited = false;
+    
+      try {
+        const res = await that.sval.run(cmd.join('\n'))
+        if (res !== undefined) {
+          // console.log(res)
+          that.global.console.log(res);
+        }
+      } catch (e) {
+        that.doc.lines[that.doc.pos.line] = `\x1b[1;31m${String(e)}\x1b[0m`
+        that.doc.lines.push('')
+        that.doc.pos.line = that.doc.lines.length-1
+        // console.log(that.doc)
+      }
+    
+    }
+    
+    // on last line - which is new empty line
+    if (this.doc.pos.line == this.doc.lines.length - 1 && this.doc.lines[this.doc.pos.line].length == 0) {
 
-    this._setRowsFromLines()
-    this._updateDisplay()
-    this.draw();
+      let commandLines = this.doc.lines.slice(this.promptOnLine,this.doc.lines.length - 1)
+      commandLines = commandLines.map((line) => stripAnsi(line))
+      commandLines[0] = commandLines[0].slice(2)
+
+      if (commandLines.join('').trim() == '') {
+        console.log('more ...')
+      } else {
+      
+
+        // try {
+          let complete = this.isCompleteJavascriptStatement(commandLines)
+          if (complete) {
+
+            execCommand(commandLines).then((r) => {
+              this.doc.lines[this.doc.pos.line] = this.prompt
+              this.doc.pos.char = this.promptLength
+              this.promptOnLine = this.doc.pos.line
+              this._setRowsFromLines()
+              this._updateDisplay()
+              this.draw(); 
+            })
+      
+          // } else {
+          //   console.log('more ...')
+          }
+        // } catch (e) {
+        //   console.log('error')
+        //   this.doc.lines[this.doc.pos.line] = `${e}`
+        //   this.doc.lines.push(this.prompt)
+        //   this.doc.pos.line++
+        //   this.doc.pos.char = this.promptLength
+        //   this.promptOnLine = this.doc.pos.line
+
+        //   this._setRowsFromLines()
+        //   this._updateDisplay()
+        //   this.draw();
+    
+        // }
+      }
+    }
+
   }
 
   insert(e) {
-    const lns = e.split('\r')
-    const line = this.doc.lines[this.doc.pos.line]
-    const left = sliceAnsi(line, 0, this.doc.pos.char)
-    const right = sliceAnsi(line, this.doc.pos.char)
+    super.insert(e)
 
-    this.doc.lines[this.doc.pos.line] = left + lns[0]
+    let commandLines = this.doc.lines.slice(this.promptOnLine)
+    commandLines = commandLines.map((line) => stripAnsi(line))
+    commandLines[0] = commandLines[0].slice(2)
 
-    for (let i = 1; i < lns.length; i++) {
-      this.doc.pos.line++
-      this.doc.lines.splice(this.doc.pos.line, 0, lns[i])
+    let x = hljs.highlight(commandLines.join('\n'), {language: 'javascript', ignoreIllegals: true})
+    const colored = colorize(x.value,{theme}).split('\n')
+
+    this.doc.lines[this.promptOnLine] = this.prompt + colored[0]
+    for (let i=this.promptOnLine+1 ; i<this.doc.lines.length ; i++ ) {
+      this.doc.lines[i] = colored[i-this.promptOnLine]
     }
-
-    this.doc.pos.char = stripAnsi(this.doc.lines[this.doc.pos.line]).length
-    this.doc.lines[this.doc.pos.line] += right
 
     this._setRowsFromLines()
     this._updateDisplay()
     this.draw();
+
+  }
+
+  docUpdated() {
+
+    
+
+    // console.log("doc update")
   }
 }
