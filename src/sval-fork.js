@@ -4762,9 +4762,11 @@ import {Parser as acorn} from 'acorn';
           this.options.ecmaVersion = ecmaVer;
           this.options.sourceType = sourceType;
           const globalThisPrototype = options.globalObject || {};
+          // console.log(globalThisPrototype.console.history)
           this.options.globalObject = Object.create(globalThisPrototype);
           this.options.globalObject.prototype = globalThisPrototype
 
+          // console.log(this.options.globalObject.console.history)
         //   if (sandBox) {
         //       var win = createSandBox();
         //       this.scope.let('globalThis', win);
@@ -4775,7 +4777,8 @@ import {Parser as acorn} from 'acorn';
             //   this.scope.let('globalThis', this.options.globalObject);
             //   this.scope.let('window', this.options.globalObject);
               this.scope.let('this', this.options.globalObject);
-console.log(this.options.globalObject)
+
+              // console.log(this.options.globalObject)
         //   }
       }
     //   Sval.prototype.import = function (nameOrModules, mod) {

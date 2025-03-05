@@ -58,10 +58,33 @@ export class TermDocument {
   }
 
   _initTermEvents() {
+
+    // term.onSelectionChange(() => {
+    //   console.log('onSelectionChange', term.getSelection());
+    // });
+
+    this.term.attachCustomWheelEventHandler(ev => {
+      if (ev.deltaY < 0) {
+        this.display.scroll.rowAtTop = Math.max(0,this.display.scroll.rowAtTop - 1)
+      } else if (ev.deltaY > 0) {
+        this.display.scroll.rowAtTop = Math.min(this.doc.rows.length - 1 - this.display.height + (this.drawFrame?2:1), this.display.scroll.rowAtTop + 1);
+      }
+      this._updateCursorXY()
+      this._updateScrollY()
+      this.draw()
+      ev.preventDefault()
+      return false;
+    });
+    
+    this.term.onScroll((e) => { 
+      console.log(e)
+      return false;
+    });
+    
     this.term.attachCustomKeyEventHandler((key) => {
+
       if (key.type != 'keydown') return false
-    
-    
+        
       // allows copy/paste to work
       if (key.ctrlKey || key.metaKey || key.altKey) {
       } else if (key.code == 'ArrowLeft') {
@@ -89,15 +112,21 @@ export class TermDocument {
         this.keyEnter()
       } else if(key.code == 'Space') {
         // TODO: not sure why this is needed
+        // SPACE key doesn't get through
         this.insert(' ')
+      } else if (key.keyCode >= 65 && key.keyCode <= 90 && key.shiftKey) {
+        // TODO: not sure why this is needed
+        // SHIFT+character doesn't get through
+        this.insert(key.key)
       } else {
         return true;
       }
+
       return false
     });
     
     
-    this.term.onData(async e => {  
+    this.term.onData(async e => {
       this.insert(e)
     })
     
@@ -172,7 +201,7 @@ export class TermDocument {
     }
 
     // rows
-    for (let i = (this.drawFrame?1:0); i < this.display.height - (this.drawFrame?1:0) ; i++) {
+    for (let i = (this.drawFrame?1:0) ; i < this.display.height - (this.drawFrame?1:0) ; i++) {
       let r = this.display.scroll.rowAtTop + i - (this.drawFrame?1:0)
       // console.log(this.display.scroll.rowAtTop,i,this.doc.rows.length,r)
       if (r<0 || r >= this.doc.rows.length) continue
@@ -181,7 +210,12 @@ export class TermDocument {
     }
 
     // cursor pos
-    this.term.write(`\x1b[${this.display.top + this.display.cursor.y};${this.display.left + this.display.cursor.x}H`);
+    if (this.display.cursor.y >= (this.drawFrame?1:0) && this.display.cursor.y < this.display.height - (this.drawFrame?1:0)) {
+      this.term.write('\x1b[?25h') // display cursor
+      this.term.write(`\x1b[${this.display.top + this.display.cursor.y};${this.display.left + this.display.cursor.x}H`);
+    } else {
+      this.term.write('\x1b[?25l') // hide cursor
+    }
   }
 
   _updateScrollX() {
@@ -208,6 +242,11 @@ export class TermDocument {
     }
   }
 
+  _updateCursorXY() {
+    this.display.cursor.x = this.display.cursor.char - this.display.scroll.charAtLeft + (this.drawFrame?1:0)
+    this.display.cursor.y = this.display.cursor.row - this.display.scroll.rowAtTop + (this.drawFrame?1:0)
+  }
+
   _updateDisplay() {
     // check if doc.pos.char is past end of line
     if (this.doc.pos.char > stripAnsi(this.doc.lines[this.doc.pos.line]).length) {
@@ -218,29 +257,24 @@ export class TermDocument {
     if (this.wrap) {
 
       // find the row for this line
-      let r=-1
+      this.display.cursor.row = -1
       for (let i=0 ; i<this.doc.rows.length ; i++) {
         if (this.doc.rows[i].line == this.doc.pos.line) {
-          r = i
+          this.display.cursor.row = i
           break
         }
       }
 
       // find offset in the rows of this line
-      let c = this.doc.pos.char
-      r += Math.floor(c/(this.display.width - (this.drawFrame?2:0)))
-      c = c % (this.display.width - (this.drawFrame?2:0))
-
-      // update cursor.x
-      this.display.cursor.x = c - this.display.scroll.charAtLeft + (this.drawFrame?1:0)
-
-      // update cursor.y
-      this.display.cursor.y = r - this.display.scroll.rowAtTop + (this.drawFrame?1:0)
-
+      this.display.cursor.char = this.doc.pos.char
+      this.display.cursor.row += Math.floor(this.display.cursor.char/(this.display.width - (this.drawFrame?2:0)))
+      this.display.cursor.char = this.display.cursor.char % (this.display.width - (this.drawFrame?2:0))
     } else {
-      this.display.cursor.x = this.doc.pos.char - this.display.scroll.charAtLeft + (this.drawFrame?1:0)
-      this.display.cursor.y = this.doc.pos.line - this.display.scroll.rowAtTop + (this.drawFrame?1:0)
+      this.display.cursor.char = this.doc.pos.char
+      this.display.cursor.row = this.doc.pos.line
     }
+
+    this._updateCursorXY()
 
     // update horizontal scroll
     if (this.display.cursor.x < (this.drawFrame?1:0)) {

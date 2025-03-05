@@ -4,21 +4,18 @@ import '@xterm/xterm/css/xterm.css'
 import 'highlight.js/styles/github.css'
 import 'highlightjs-copy/styles/highlightjs-copy.css'
 
-import theme from './ansi-hljs-theme.js'
-import colorize from './ansi-hljs.js'
 import hljs from 'highlight.js/lib/core';
 import javascript from 'highlight.js/lib/languages/javascript';
 import CopyButtonPlugin from 'highlightjs-copy';
 import { Terminal } from '@xterm/xterm/lib/xterm.js'
 import { FitAddon } from '@xterm/addon-fit';
-import Sval from './sval-fork.js';
-
-import termConsole from './termjs-console.js'
 import mongo from 'mongols'
-//import termCommand from './termjs-command.js'
-// import stripAnsi from 'strip-ansi'
 import { TermShell } from './termjs-shell.js'
 
+import shellConsole from './termjs-shell-console.js'
+import history from './termjs-shell-history.js'
+
+// highlight on webpage
 hljs.addPlugin(
   new CopyButtonPlugin({
     autohide: false, // Always show the copy button
@@ -26,15 +23,6 @@ hljs.addPlugin(
 );
 hljs.registerLanguage('javascript', javascript);
 hljs.highlightAll();
-
-//const PROMPT = '\x1b[1;34m$\x1b[0m '
-const PROMPTX = '\x1b[1;34m|\x1b[0m '
-const ERASE_TO_END = '\x1b[0K'
-const MOVE_UP = '\x1b[A'
-// const MOVE_RIGHT = '\x1b[C'
-// const MOVE_LEFT = '\x1b[D'
-
-const NATIVE = function() { return '#native'; }
 
 // https://jakob-bagterp.github.io/colorist-for-python/ansi-escape-codes/standard-16-colors/#foreground-text-colors
 const baseTheme = {
@@ -69,7 +57,7 @@ const term = new Terminal({
   fontStyle: 'normal',
   theme: baseTheme,
   cursorBlink: true,
-  scrollback: 0//1000
+  scrollback: 1000
 })
 
 const fitAddon = new FitAddon();
@@ -78,64 +66,38 @@ window.onresize = function() {
   fitAddon.fit();
 }
 
-// term.onSelectionChange(() => {
-//   console.log('onSelectionChange', term.getSelection());
-// });
-
-term.onScroll((e) => { 
-  console.log('onScroll', e);
-  return false;
- });
-
-
 term.open(document.getElementById('terminal'));
 fitAddon.fit();
 
-//term.write(PROMPT)
+const logo = 
+`\x1b[1;31m  __  __ _                  __  __                         
+ \x1b[1;31m|  \\/  (_) ___ _ __ ___   |  \\/  | ___  _ __   __ _  ___  
+ \x1b[1;31m| |\\/| | |/ __| '__/ _ \\  | |\\/| |/ _ \\| '_ \\ / _\` |/ _ \\ 
+ \x1b[1;31m| |  | | | (__| | | (_) | | |  | | (_) | | | | (_| | (_) |
+ \x1b[1;31m|_|  |_|_|\\___|_|  \\___/  |_|  |_|\\___/|_| |_|\\__, |\\___/ 
+ \x1b[1;31m                                              |___/`
 
-
-const frame = new TermShell(term,{
+const shell = new TermShell(term,{
   top: 1,
   left: 1,
   height: term.rows,
-  width: 20,//term.cols,
-  drawFrame: true,
-  wrap: true
+  width: term.cols,
+  drawFrame: false,
+  wrap: true,
+  lines: logo.split('\n'),
+  plugins: [shellConsole,history]
 });
 
 term.focus();
 
-term.attachCustomWheelEventHandler(ev => {
-  // TODO:
-  return false;
-});
+const NATIVE = function() { return '#native'; }
 
-
-const globalPrototype = frame.global
+const globalPrototype = shell.global
 
 const iframe = document.getElementById('playground').contentWindow
 globalPrototype.window = iframe
 globalPrototype.document = iframe.document
 
-globalPrototype.console = termConsole(frame)
-globalPrototype.console.help = function() {
-  term.write("\r\nJavaScript Console in the Browser\r\n\n")
-}
-globalPrototype.console.help.toString = NATIVE
-globalPrototype.console.history = async function(i) {
-  if (Number.isInteger(i) && i>0 && i<=cmd.history.length) {
-    const c = cmd.history[i-1].join('\r\n');
-    cmd.history.push([...cmd.history[i-1]]);
-    term.write(PROMPT)
-    term.write(c)
-    term.write('\r\n')
-    await execCommand(c)
-  } else {
-    for (let i=0 ; i<cmd.history.length ; i++) {
-      term.write(`${i+1}\t${cmd.history[i].join('\r\n\t')}\r\n`)
-    }
-  }
-}
 Object.values(globalPrototype.console).forEach((v) => v.toString = NATIVE)
 
 globalPrototype.db = new mongo.DB();

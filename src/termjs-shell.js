@@ -1,4 +1,6 @@
 
+// https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797?permalink_comment_id=3857871
+
 import { TermDocument } from './termjs-document.js';
 import stripAnsi from 'strip-ansi'
 import Sval from './sval-fork.js';
@@ -10,45 +12,35 @@ import hljs from 'highlight.js/lib/core';
 import javascript from 'highlight.js/lib/languages/javascript';
 hljs.registerLanguage('javascript', javascript);
 
-
-let x = hljs.highlight(`let x = { name: "fred", v`, {language: 'javascript', ignoreIllegals: true})
-let y = colorize(x.value,{theme})
-
-
-let doc = [...Array(30)].map((v, i) => `\x1b[1;34m$\x1b[0m line ${i + 1} of 50`)
-doc[2] += ' this is the longest line'
-doc[1] = y
-
 const PROMPT = '\x1b[1;34m$\x1b[0m '
-
-
 const PARSE_ERROR_REGEX = /(.*) \((\d+):(\d+)\)/
-  
-  
 
 export class TermShell extends TermDocument {
 
   constructor(t,o) {
-    o.lines = doc
+    o.lines = o.lines || []
     o.prompt = o.prompt || PROMPT
     o.lines.push(o.prompt)
+    o.plugins = o.plugins || []
     
     super(t,o)
 
-    // this.global = global()
+    this.global = global()
+
+    o.plugins.forEach((p) => {
+      p(this)
+    })
+
     this.sval = new Sval({
       ecmaVer: 'latest',
       sourceType: 'module',
-      globalObject: global()
+      globalObject: this.global
     })
-
-this.global = this.sval.options.globalObject
 
     this.prompt = o.prompt
     this.promptLength = stripAnsi(this.prompt).length
 
-
-    this.history = ['1','2','3']
+    this.history = []
     this.historyPos = -1;
     this.promptOnLine = this.doc.lines.length-1
     this._updateDisplay()
@@ -80,9 +72,7 @@ this.global = this.sval.options.globalObject
   }
 
   keyUp() {
-    if (this.doc.pos.line==this.promptLine) {
-      // if (this.doc.pos.char == this.promptLength) {
-      console.log("previous history")
+    if (this.doc.pos.line==this.promptOnLine) {
 
       const oldPos = this.historyPos
       if (this.historyPos > 0) {
@@ -92,8 +82,13 @@ this.global = this.sval.options.globalObject
       }
 
       if (this.historyPos != oldPos) {
-        this.doc.lines[this.doc.lines.length-1] = this.prompt + this.history[this.historyPos]
-        this.doc.pos.char = this.doc.lines[this.doc.lines.length-1].length
+        this.doc.lines.splice(this.promptOnLine)
+        let cmd = [...this.history[this.historyPos]]
+        cmd = this.colorize(cmd.join('\n')).split('\n')
+        cmd[0] = this.prompt + cmd[0]
+        this.doc.lines.push(...cmd)
+        this.doc.pos.line = this.doc.lines.length-1
+        this.doc.pos.char = this.doc.lines[this.doc.pos.line].length
         this._setRowsFromLines()
       }
 
@@ -106,10 +101,9 @@ this.global = this.sval.options.globalObject
   }
 
   keyDown() {
-    if (this.doc.pos.line==this.doc.lines.length-1) {
+    if (this.doc.pos.line==this.doc.lines.length-1) {//} && this.doc.pos.line==this.promptOnLine) {
       const lineLength = stripAnsi(this.doc.lines[this.doc.pos.line]).length
       if (this.doc.pos.char == lineLength) {
-        console.log("next history")
 
         // show next history command
         const oldPos = this.historyPos;
@@ -122,12 +116,18 @@ this.global = this.sval.options.globalObject
 
         if (this.historyPos != oldPos) {
 
+          this.doc.lines.splice(this.promptOnLine)
+  
           if (this.historyPos == -1) {
-            this.doc.lines[this.doc.lines.length-1] = this.prompt
+            this.doc.lines.push(this.prompt)
           } else {
-            this.doc.lines[this.doc.lines.length-1] = this.prompt + this.history[this.historyPos]
+            let cmd = [...this.history[this.historyPos]]
+            cmd = this.colorize(cmd.join('\n')).split('\n')
+            cmd[0] = this.prompt + cmd[0]
+            this.doc.lines.push(...cmd)
           }
-          this.doc.pos.char = this.doc.lines[this.doc.lines.length-1].length
+          this.doc.pos.line = this.doc.lines.length-1
+          this.doc.pos.char = this.doc.lines[this.doc.pos.line].length
           this._setRowsFromLines()
         }
 
@@ -152,6 +152,7 @@ this.global = this.sval.options.globalObject
   }
 
   keyBackspace() {
+    if (this.doc.pos.line == this.promptOnLine && this.doc.pos.char <= this.promptLength) return
     super.keyBackspace()
   }
 
@@ -159,34 +160,36 @@ this.global = this.sval.options.globalObject
     super.keyDelete()
   }
 
+  execCommand(cmd) {
+    const that = this
+
+    that.history.push(cmd)
+    that.historyPos = -1
+  
+    that.sval.run(cmd.join('\n'))
+      .then((v) => {
+        if (v !== undefined) {
+          that.global.console.log(v);
+        }  
+      })
+      .catch((e) => {
+        that.doc.lines[that.doc.pos.line] = `\x1b[1;31m${String(e)}\x1b[0m`
+        that.doc.lines.push('')
+        that.doc.pos.line = that.doc.lines.length-1  
+      })
+      .finally(() => {
+        that.doc.lines[that.doc.pos.line] = that.prompt
+        that.doc.pos.char = that.promptLength
+        that.promptOnLine = that.doc.pos.line
+        that._setRowsFromLines()
+        that._updateDisplay()
+        that.draw(); 
+      })
+  }
+
   keyEnter() {
     super.keyEnter()
 
-    const that = this
-
-    async function execCommand(cmd) {
-  
-      // cmd.historyPos = -1;
-      // cmd.lines = [''];
-      // cmd.x = 0;
-      // cmd.y = 0;
-      // cmd.edited = false;
-    
-      try {
-        const res = await that.sval.run(cmd.join('\n'))
-        if (res !== undefined) {
-          // console.log(res)
-          that.global.console.log(res);
-        }
-      } catch (e) {
-        that.doc.lines[that.doc.pos.line] = `\x1b[1;31m${String(e)}\x1b[0m`
-        that.doc.lines.push('')
-        that.doc.pos.line = that.doc.lines.length-1
-        // console.log(that.doc)
-      }
-    
-    }
-    
     // on last line - which is new empty line
     if (this.doc.pos.line == this.doc.lines.length - 1 && this.doc.lines[this.doc.pos.line].length == 0) {
 
@@ -194,43 +197,22 @@ this.global = this.sval.options.globalObject
       commandLines = commandLines.map((line) => stripAnsi(line))
       commandLines[0] = commandLines[0].slice(2)
 
-      if (commandLines.join('').trim() == '') {
-        console.log('more ...')
-      } else {
-      
-
-        // try {
-          let complete = this.isCompleteJavascriptStatement(commandLines)
-          if (complete) {
-
-            execCommand(commandLines).then((r) => {
-              this.doc.lines[this.doc.pos.line] = this.prompt
-              this.doc.pos.char = this.promptLength
-              this.promptOnLine = this.doc.pos.line
-              this._setRowsFromLines()
-              this._updateDisplay()
-              this.draw(); 
-            })
-      
-          // } else {
-          //   console.log('more ...')
-          }
-        // } catch (e) {
-        //   console.log('error')
-        //   this.doc.lines[this.doc.pos.line] = `${e}`
-        //   this.doc.lines.push(this.prompt)
-        //   this.doc.pos.line++
-        //   this.doc.pos.char = this.promptLength
-        //   this.promptOnLine = this.doc.pos.line
-
-        //   this._setRowsFromLines()
-        //   this._updateDisplay()
-        //   this.draw();
-    
-        // }
+      if (commandLines.join('').trim() != '') {
+        let complete = this.isCompleteJavascriptStatement(commandLines)
+        if (complete) {
+          this.execCommand(commandLines)
+        }
       }
     }
+  }
 
+  insertAnsi(e) {
+    super.insert(e)
+  }
+
+  colorize(js) {
+    let x = hljs.highlight(js, {language: 'javascript', ignoreIllegals: true})
+    return colorize(x.value,{theme})
   }
 
   insert(e) {
@@ -240,10 +222,10 @@ this.global = this.sval.options.globalObject
     commandLines = commandLines.map((line) => stripAnsi(line))
     commandLines[0] = commandLines[0].slice(2)
 
-    let x = hljs.highlight(commandLines.join('\n'), {language: 'javascript', ignoreIllegals: true})
-    const colored = colorize(x.value,{theme}).split('\n')
+    const colored = this.colorize(commandLines.join('\n')).split('\n')
 
     this.doc.lines[this.promptOnLine] = this.prompt + colored[0]
+
     for (let i=this.promptOnLine+1 ; i<this.doc.lines.length ; i++ ) {
       this.doc.lines[i] = colored[i-this.promptOnLine]
     }
@@ -251,13 +233,9 @@ this.global = this.sval.options.globalObject
     this._setRowsFromLines()
     this._updateDisplay()
     this.draw();
-
   }
 
   docUpdated() {
-
-    
-
     // console.log("doc update")
   }
 }
