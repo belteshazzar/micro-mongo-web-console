@@ -33,19 +33,18 @@
       <div id="terminal"></div>
     </div>
     <div id="docs">
+
+      <pre><code class="language-javascript">document.querySelector('input[type=range]').addEventListener('input',(e) => console.log(e.target.value))</code></pre>
       <pre><code class="language-javascript">// this is a long comment that goes past the end of the line and wraps to the next
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 ctx.fillStyle = 'red';
 ctx.fillRect(10, 10, 100, 100);</code></pre>
 
-<pre><code class="language-javascript">
-db.createCollection('movies_hot_friend')
-</code></pre>
+<pre><code class="language-javascript">db.createCollection('movies_hot_friend')</code></pre>
 
 
-<pre><code class="language-javascript">
-db.movies_hot_friend.insertMany([
+<pre><code class="language-javascript">db.movies_hot_friend.insertMany([
    {
   title: "Titanic",
   year: 1997,
@@ -139,8 +138,7 @@ db.movies_hot_friend.insertMany([
   lastupdated: "2015-09-04 00:22:54.600000000",
   year: 1942,
 }
-])
-</code></pre>
+])</code></pre>
 
 <pre><code class="language-javascript">db.movies_hot_friend.find( { } )</code></pre>
 

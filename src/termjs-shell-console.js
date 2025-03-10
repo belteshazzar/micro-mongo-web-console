@@ -9,15 +9,6 @@ const chalk = new Chalk({ level: 1 })
 // https://developer.mozilla.org/en-US/docs/Web/API/console/log_static
 // https://developer.mozilla.org/en-US/docs/Web/API/console#using_string_substitutions
 
-function util_inspect(o) {
-    if ( o === undefined) return "undefined"
-    if (typeof o == 'string') return `"${o}"`
-    const s = util.inspect(o,{
-        compact: true})
-        .replaceAll("\n","\r");
-    console.log(s)
-    return s
-}
 
 const DEFAULT_LABEL = "default";
 
@@ -27,6 +18,13 @@ export default function(shell) {
     const timers = new Map();
     let indent = '';
 
+    function util_inspect(o) {
+      if ( o === undefined) return "undefined"
+      if (typeof o == 'string') return `"${o}"`
+      return util.inspect(o,{
+          compact: true})
+    }
+  
     shell.global.console = {
         assert: function(assertion) {
             if (!assertion) throw new Error('Assertion failed')
@@ -42,27 +40,27 @@ export default function(shell) {
                 c++
             }
             counts.set(label,c)
-            shell.insert(`${indent}${label}: ${c}\r`)
+            shell.insertBeforePrompt([`${indent}${label}: ${c}`])
         },
         countReset: function(label = DEFAULT_LABEL) {
             let c = counts.get(label);
             if (c === undefined) {
-                _console.warn(`Count for '${label}' does not exist\r`)
+                shell.global.console.warn(`Count for '${label}' does not exist`)
             } else {
                 counts.set(label,0)
             }
         },
         debug: function(data,...args) {
-            shell.insert(`${indent}${util_inspect(data)}\r`)
+            shell.insertBeforePrompt([`${indent}${shell.colorize(util_inspect(data))}`])
         },
         dir: function(obj,options) {
-            shell.insert(`${indent}${util_inspect(obj)}\r`)
+            shell.insertBeforePrompt([`${indent}${shell.colorize(util_inspect(obj))}`])
         },
         dirxml: function(obj,options) {
-            shell.insert(`${indent}${util_inspect(obj)}\r`)
+            shell.insertBeforePrompt([`${indent}${shell.colorize(util_inspect(obj))}`])
         },
         error: function(data,...args) {
-            shell.insertAnsi(`${indent}${chalk.red('ERROR:')} ${util_inspect(data)}\r`)
+            shell.insertBeforePrompt([`${indent}${chalk.red('ERROR:')} ${shell.colorize(util_inspect(data))}`])
         },
         group: function(label) {
             indent += '   '
@@ -74,21 +72,24 @@ export default function(shell) {
             indent = indent.length > 3 ? indent.slice(-3) : ''
         },
         info: function(data,...args) {
-            shell.insertAnsi(`${indent}${chalk.blue('INFO:')} ${util_inspect(data)}\r`)
+            shell.insertBeforePrompt([`${indent}${chalk.blue('INFO:')} ${shell.colorize(util_inspect(data))}`])
         },
         log: function(data,...args) {
-          shell.insert(`${indent}${util_inspect(data)}\r`)
+          shell.insertBeforePrompt([`${indent}${shell.colorize(util_inspect(data))}`])
         },
         profile: function() {},
         profileEnd: function() {},
+        reset: function() {
+          shell.reset()
+        },
         table: function(data,columns) {
             // TODO: examples from mozilla don't all work
             // https://developer.mozilla.org/en-US/docs/Web/API/console/table_static
-            _console.log(new Table(data, columns).table.replaceAll("\n","\r"))
+            shell.global.console.log(new Table(data, columns).table.replaceAll("\n","\r"))
         },
         time: function(label = DEFAULT_LABEL) {
             if (timers.has(label)) {
-                _console.warn(`Timer '${label}' already exists`)
+                shell.global.console.warn(`Timer '${label}' already exists`)
             } else {
                 timers.set(label,Date.now())
             }
@@ -96,18 +97,18 @@ export default function(shell) {
         timeEnd: function(label = DEFAULT_LABEL) {
             const t = timers.get(label)
             if (t === undefined) {
-                _console.warn(`Timer '${label}' does not exist`)
+                shell.global.console.warn(`Timer '${label}' does not exist`)
             } else {
-                _console.log(`${label}: ${Date.now() - t} ms`)
+                shell.insertBeforePrompt([`${label}: ${Date.now() - t} ms`])
                 timers.delete(label)
             }
         },
         timeLog: function(label = DEFAULT_LABEL) {
             const t = timers.get(label)
             if (t === undefined) {
-                _console.warn(`Timer '${label}' does not exist`)
+                shell.global.console.warn(`Timer '${label}' does not exist`)
             } else {
-                _console.log(`${label}: ${Date.now() - t} ms`)
+                shell.insertBeforePrompt([`${indent}${label}: ${Date.now() - t} ms`])
             }
         },
         timeStamp: function() {},
@@ -115,11 +116,15 @@ export default function(shell) {
             try {
                 throw new Error()
             } catch (e) {
-                shell.insert(`${util_inspect(e)}\r`)
+              let s = `${util.inspect(e)}`.split('\n')
+              s[0] = s[0].slice(1)
+              s[s.length-1] = s[s.length-1].slice(0,-1)
+              s = s.map((v) => `${indent}${v}`)
+              shell.insertBeforePrompt(s)
             }
         },
         warn: function(data,...args) {
-            shell.insertAnsi(`${indent}${chalk.yellow('WARNING:')} ${util_inspect(data)}\r`)
+            shell.insertBeforePrompt([`${indent}${chalk.yellow('WARNING:')} ${shell.colorize(util_inspect(data))}`])
         }
     };
 

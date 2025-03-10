@@ -20,7 +20,6 @@ export class TermShell extends TermDocument {
   constructor(t,o) {
     o.lines = o.lines || []
     o.prompt = o.prompt || PROMPT
-    o.lines.push(o.prompt)
     o.plugins = o.plugins || []
     
     super(t,o)
@@ -31,20 +30,40 @@ export class TermShell extends TermDocument {
       p(this)
     })
 
+    this.prompt = o.prompt
+    this.promptLength = stripAnsi(this.prompt).length
+    this.history = []
+    this.historyPos = -1;
+
+    this.reset()
+    this.addPrompt()
+  }
+
+  addPrompt() {
+    this.doc.lines.push(this.prompt)
+    this.promptOnLine = this.doc.lines.length-1
+    this.doc.pos.line = this.promptOnLine
+    this.doc.pos.char = this.promptLength
+
+    this._setRowsFromLines()
+    super._updateDisplay()
+    this.draw();
+  }
+
+  clear() {
+    this.doc.lines = []
+    this.addPrompt()
+    this._setRowsFromLines()
+    super._updateDisplay()
+    this.draw();
+  }
+
+  reset() {
     this.sval = new Sval({
       ecmaVer: 'latest',
       sourceType: 'module',
       globalObject: this.global
-    })
-
-    this.prompt = o.prompt
-    this.promptLength = stripAnsi(this.prompt).length
-
-    this.history = []
-    this.historyPos = -1;
-    this.promptOnLine = this.doc.lines.length-1
-    this._updateDisplay()
-    this.draw()
+    })    
   }
 
   isCompleteJavascriptStatement(cmd) {
@@ -165,45 +184,61 @@ export class TermShell extends TermDocument {
 
     that.history.push(cmd)
     that.historyPos = -1
+
+    // remove the empty line
+    that.doc.lines = that.doc.lines.slice(0,-1)
+    that.addPrompt()
   
     that.sval.run(cmd.join('\n'))
       .then((v) => {
         if (v !== undefined) {
           that.global.console.log(v);
-        }  
+        }
       })
       .catch((e) => {
-        that.doc.lines[that.doc.pos.line] = `\x1b[1;31m${String(e)}\x1b[0m`
-        that.doc.lines.push('')
-        that.doc.pos.line = that.doc.lines.length-1  
-      })
-      .finally(() => {
-        that.doc.lines[that.doc.pos.line] = that.prompt
-        that.doc.pos.char = that.promptLength
-        that.promptOnLine = that.doc.pos.line
-        that._setRowsFromLines()
-        that._updateDisplay()
-        that.draw(); 
+        that.insertBeforePrompt([`\x1b[1;31m${String(e)}\x1b[0m`])
       })
   }
 
   keyEnter() {
     super.keyEnter()
 
-    // on last line - which is new empty line
+    // if on last line and its empty
     if (this.doc.pos.line == this.doc.lines.length - 1 && this.doc.lines[this.doc.pos.line].length == 0) {
 
-      let commandLines = this.doc.lines.slice(this.promptOnLine,this.doc.lines.length - 1)
+      let commandLines = this.doc.lines.slice(this.promptOnLine,-1)
+      // remove ansi
       commandLines = commandLines.map((line) => stripAnsi(line))
+      // remove prompt
       commandLines[0] = commandLines[0].slice(2)
 
       if (commandLines.join('').trim() != '') {
-        let complete = this.isCompleteJavascriptStatement(commandLines)
-        if (complete) {
-          this.execCommand(commandLines)
+        try {
+          let complete = this.isCompleteJavascriptStatement(commandLines)
+          if (complete) {
+            this.execCommand(commandLines)
+          }
+        } catch (e) {
+          // remove the empty line
+          this.doc.lines = this.doc.lines.slice(0,-1)
+          this.addPrompt()
+          this.insertBeforePrompt([`\x1b[1;31m${String(e)}\x1b[0m`])
         }
       }
     }
+  }
+
+  insertBeforePrompt(newLines) {
+    const oldLines = this.doc.lines.slice(0,this.promptOnLine)
+    const promptLines = this.doc.lines.slice(this.promptOnLine)
+
+    this.doc.lines = [...oldLines, ...newLines, ...promptLines]
+    this.promptOnLine += newLines.length
+    this.doc.pos.line += newLines.length
+
+    this._setRowsFromLines()
+    this._updateDisplay()
+    this.draw();
   }
 
   insertAnsi(e) {

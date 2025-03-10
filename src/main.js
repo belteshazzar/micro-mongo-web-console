@@ -50,14 +50,14 @@ const baseTheme = {
 const term = new Terminal({
   fontFamily: 'monospace',
   fontSize: 13,
-  fontWeight: 400,
+  fontWeight: 100,
   drawBoldTextInBrightColors: true,
-  fontWeightBold: 400,
+  fontWeightBold: 100,
   lineHeight: 1.0,
   fontStyle: 'normal',
   theme: baseTheme,
   cursorBlink: true,
-  scrollback: 1000
+  scrollback: 0
 })
 
 const fitAddon = new FitAddon();
@@ -75,7 +75,8 @@ const logo =
  \x1b[1;31m| |\\/| | |/ __| '__/ _ \\  | |\\/| |/ _ \\| '_ \\ / _\` |/ _ \\ 
  \x1b[1;31m| |  | | | (__| | | (_) | | |  | | (_) | | | | (_| | (_) |
  \x1b[1;31m|_|  |_|_|\\___|_|  \\___/  |_|  |_|\\___/|_| |_|\\__, |\\___/ 
- \x1b[1;31m                                              |___/`
+ \x1b[1;31m                                              |___/
+ `
 
 const shell = new TermShell(term,{
   top: 1,
