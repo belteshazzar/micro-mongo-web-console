@@ -21,7 +21,6 @@
     "highlightjs-copy": "^1.0.6",
     "mongols": "^1.0.4",
     "node-inspect-extracted": "^3.0.2",
-    "nodejs-console-table": "^1.0.5",
     "parse5": "^7.2.1",
     "parse5-htmlparser2-tree-adapter": "^7.1.0",
     "slice-ansi": "^7.1.0",
