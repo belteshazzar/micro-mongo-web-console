@@ -1,90 +1,60 @@
+
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --bg:#0b0f14;
+  --fg:#d7e0ea;
+  --cursor:#7ee787;
+  --cursor-glow: rgba(126,231,135,0.55);
 }
 
-.split {
-  height: 100%;
-  width: 50%;
-  position: fixed;
-  z-index: 1;
-  top: 0;
-  overflow-x: hidden;
-  padding: 0px;
+html, body {
+  height:100%;
+  margin:0;
+  background:var(--bg);
+  color:var(--fg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
 }
 
-/* Control the left side */
-.left {
-  left: 0;
+#terminal {
+  height:100%;
+  box-sizing:border-box;
+  padding:14px;
 }
 
-/* Control the right side */
-.right {
-  right: 0;
+#screen {
+  height:100%;
+  width:100%;
+  box-sizing:border-box;
+  user-select:none;
+  white-space:pre;
+  line-height:14px;
+  font-size:12px;
+  overflow:hidden; /* scrollback is internal */
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+.row {
+  height:14px;
 }
 
-body {
-  margin: 0;
-  padding: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+#kbd {
+  position:fixed;
+  opacity:0;
+  left:-9999px;
+  top:-9999px;
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+/* thin bar cursor with fixed bright color */
+.cursorbar {
+  position:relative;
 }
 
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+.cursorbar::before {
+  content:"";
+  position:absolute;
+  left:0;
+  top:0;
+  bottom:0;
+  width:2px;
+  background: var(--cursor);
+  box-shadow: 0 0 10px var(--cursor-glow);
+  pointer-events:none;
 }

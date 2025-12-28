@@ -9,12 +9,13 @@
     "preview": "vite preview"
   },
   "devDependencies": {
-    "vite": "^6.0.7"
+    "vite": "^6.0.7",
+    "vite-plugin-commonjs": "^0.10.4"
   },
   "dependencies": {
-    "@xterm/addon-fit": "^0.10.0",
-    "@xterm/xterm": "^5.5.0",
     "acorn": "^8.14.0",
-    "node-inspect-extracted": "^3.0.2"
+    "micro-mongo": "file:../micro-mongo",
+    "node-inspect-extracted": "file:../node-inspect-extracted",
+    "sval": "file:../sval"
   }
 }
