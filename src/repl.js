@@ -1,8 +1,7 @@
 import Sval from 'sval';
 import { createConsole } from './console.js';
-import {inspect} from 'node-inspect-extracted';
+import util from 'node-inspect-extracted';
 import * as MicroMongo from 'micro-mongo';
-console.log('Imported MicroMongo in repl.js:', MicroMongo);
 
 function buildCommandGlobals(commands){
   if (!commands || typeof commands !== "object") return {};
@@ -40,7 +39,7 @@ export async function createGlobals(ctx) {
     // Console object
     console: createConsole({ ansi, println, errorln, dimln, ANSI }),
     util: {
-      inspect: inspect,
+      inspect: util.inspect,
     },
 
     db: db,
@@ -105,7 +104,7 @@ export class JavaScriptREPL {
 
       // Print the result if it's not undefined
       if (value !== undefined) {
-        const output = typeof value === 'string' ? value : inspect(value,{depth:0, showHidden: false});
+        const output = typeof value === 'string' ? value : util.inspect(value,{depth:0, showHidden: false});
         this.ctx.println(output);
       } else {
         this.ctx.dimln('undefined');

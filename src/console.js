@@ -1,4 +1,4 @@
-//import { inspect } from 'node-inspect-extracted';
+import util from 'node-inspect-extracted';
 
 /**
  * Create a console object that mirrors the standard JavaScript console API
@@ -12,7 +12,7 @@ export function createConsole({ ansi, println, errorln, dimln, ANSI }) {
       if (arg === null) return 'null';
       if (arg === undefined) return 'undefined';
       if (typeof arg === 'object' || typeof arg === 'function') {
-        return inspect(arg, { colors: false, depth: 4 });
+        return util.inspect(arg, { colors: false, depth: 4 });
       }
       return String(arg);
     }).join(' ');
@@ -35,7 +35,7 @@ export function createConsole({ ansi, println, errorln, dimln, ANSI }) {
     
     dir: (obj) => {
       try {
-        println(inspect(obj, { colors: false, depth: null }));
+        println(util.inspect(obj, { colors: false, depth: null }));
       } catch (e) {
         println(String(obj));
       }
@@ -43,7 +43,7 @@ export function createConsole({ ansi, println, errorln, dimln, ANSI }) {
     
     table: (data) => {
       try {
-        println(inspect(data, { colors: false, depth: 2 }));
+        println(util.inspect(data, { colors: false, depth: 2 }));
       } catch (e) {
         println(String(data));
       }

@@ -8,4 +8,13 @@ export default defineConfig({
   plugins: [
     commonjs(),
   ],
-});
+  server: {
+    watch: {
+      // Use a negated glob pattern to watch a specific package
+      ignored: ['!**/node_modules/node-inspect-extracted/**'],
+    },
+  },
+  optimizeDeps: {
+    // Exclude the package from dependency pre-bundling
+    exclude: ['node-inspect-extracted'],
+  },});
