@@ -14,8 +14,8 @@
   },
   "dependencies": {
     "acorn": "^8.14.0",
-    "micro-mongo": "file:../micro-mongo",
-    "node-inspect-extracted": "file:../node-inspect-extracted",
-    "sval": "file:../sval"
+    "micro-mongo": "github:belteshazzar/micro-mongo",
+    "node-inspect-extracted": "github:belteshazzar/node-inspect-extracted",
+    "sval": "github:belteshazzar/sval"
   }
 }
