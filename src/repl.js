@@ -4,10 +4,28 @@ import {inspect} from 'node-inspect-extracted';
 import * as MicroMongo from 'micro-mongo';
 console.log('Imported MicroMongo in repl.js:', MicroMongo);
 
+function buildCommandGlobals(commands){
+  if (!commands || typeof commands !== "object") return {};
+  const globals = { commands: commands };
+  Object.keys(commands).forEach(function(name){
+    const cmd = commands[name];
+    if (typeof cmd !== "function") return;
+    globals[name] = async function(...args){
+      return cmd(args);
+    };
+  });
+  globals.runCommand = async function(name, ...args){
+    const cmd = commands[name];
+    if (!cmd) throw new Error("Unknown command: " + name);
+    return cmd(args);
+  };
+  return globals;
+}
+
 
 export async function createGlobals(ctx) {
 
-  const { ansi, println, errorln, dimln, ANSI, OPFS, appManager, term, normalizePath, splitDirFile, refreshDirIndex, appLaunchers } = ctx;
+  const { ansi, println, errorln, dimln, ANSI, OPFS, appManager, term, normalizePath, splitDirFile, refreshDirIndex, appLaunchers, commands } = ctx;
 
   const client = await MicroMongo.MongoClient.connect('mongodb://localhost:27017');
   const db = client.db('myapp');
@@ -46,7 +64,10 @@ export async function createGlobals(ctx) {
     // refreshDirIndex: refreshDirIndex,
     
     // App launchers (if provided)
-    ...(appLaunchers || {})
+    ...(appLaunchers || {}),
+
+    // Shell commands exposed as globals for the REPL
+    ...buildCommandGlobals(commands)
   };
 }
 
@@ -79,15 +100,16 @@ export class JavaScriptREPL {
     try {
       console.log('REPL executing:', trimmed);
       const result = this.interpreter.run(trimmed);
-      console.log('REPL result:', result);
+      const value = result && typeof result.then === 'function' ? await result : result;
+      console.log('REPL result:', value);
 
       // Print the result if it's not undefined
-     if (result !== undefined) {
-        const output = typeof result === 'string' ? result : inspect(result);
+      if (value !== undefined) {
+        const output = typeof value === 'string' ? value : inspect(value,{depth:0, showHidden: false});
         this.ctx.println(output);
-     } else {
+      } else {
         this.ctx.dimln('undefined');
-     }
+      }
     } catch (e) {
       this.ctx.errorln('Error: ' + (e.message || String(e)));
     }

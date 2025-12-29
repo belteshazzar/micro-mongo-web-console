@@ -42,7 +42,10 @@ screenEl.addEventListener("wheel", function(e){
   e.preventDefault();
   if (term.useAlt) return;
   var dy = e.deltaY;
-  var direction = (dy > 0) ? 1 : -1;
+  // Positive dy (wheel down) should scroll to newer lines (down),
+  // which means decreasing view offset (negative delta).
+  var baseDir = (dy > 0) ? 1 : -1; // +1 for down gesture, -1 for up
+  var direction = -baseDir; // invert so down -> negative delta
   var magnitude = Math.min(6, Math.max(1, Math.round(Math.abs(dy) / 100)));
   var step = magnitude * 3;
   term.scrollbackScroll(direction * step);
@@ -278,7 +281,21 @@ async function initREPL(){
     }
   };
 
-  const g = await createGlobals({ appLaunchers });
+  const g = await createGlobals({
+    ansi,
+    println,
+    errorln,
+    dimln,
+    ANSI,
+    OPFS,
+    appManager,
+    term,
+    normalizePath,
+    splitDirFile,
+    refreshDirIndex,
+    appLaunchers,
+    commands
+  });
   
   // Create REPL with app launchers included in globals
   repl = new JavaScriptREPL({println, errorln, dimln}, g);
@@ -293,7 +310,7 @@ var commands = {};
 commands.help = function(){
   println(
     "Commands:\n"+
-    "  help, ls, cd, pwd, mkdir, touch, cat, echo, clear, vim, less, tree, rm, rmdir, du, quota, mongosh, dim\n\n"+
+    "  help(), ls(), cd(), pwd, mkdir, touch, cat, echo, clear, vim, less, tree, rm, rmdir, du, quota, mongosh, dim\n\n"+
     "quota flags:\n"+
     "  --bar=N       set utilization bar width (default 24)\n"+
     "  --no-details  hide per-source breakdown\n"+
