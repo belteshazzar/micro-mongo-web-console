@@ -59,7 +59,6 @@ Terminal.prototype.offResize = function(cb){
 // FIXED: actually call handlers
 Terminal.prototype._emitResize = function(prevCols, prevRows) {
   var payload = { cols:this.cols, rows:this.rows, prevCols:prevCols, prevRows:prevRows };
-  console.log("Emitting terminal resize event:", payload);
   for (var i=0;i<this._resizeHandlers.length;i++){
     try {
       this._resizeHandlers[i](payload);
