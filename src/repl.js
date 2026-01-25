@@ -27,7 +27,7 @@ export async function createGlobals(ctx) {
   const { ansi, println, errorln, dimln, ANSI, OPFS, appManager, term, normalizePath, splitDirFile, refreshDirIndex, appLaunchers, commands } = ctx;
 
   const bridge = await BabyMongo.WorkerBridge.create({
-    workerUrl: "/dist/assets/babymongo-server-worker.js"
+    workerUrl: "/babymongo-web-console/assets/babymongo-server-worker.js"
   });
   const client = await BabyMongo.MongoClient.connect('mongodb://localhost:27017', {
     workerBridge: bridge
