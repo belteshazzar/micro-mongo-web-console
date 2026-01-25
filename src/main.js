@@ -931,13 +931,19 @@ async function boot(){
   OPFS.requestPersistence().catch(()=>{});
   const est = await OPFS.estimate();
 
-  ansi(ANSI.brightGreen() + "WebShell - OPFS primary store" + ANSI.reset() + "\r\n");
-  dimln("Try: tree   | less readme.txt   | vim docs/notes.txt");
+  ansi(ANSI.brightGreen() + "WebShell" + ANSI.reset() + "\r\n");
+  dimln("");
+  dimln("Try: ls()");
+  dimln("     cat(\"readme.txt\")");
+  dimln("     vim(\"docs/notes.txt\")");
+  dimln("     await db.test.find().toArray()");
+  dimln("");
   if (est && est.quota != null && est.usage != null){
     const usedMB  = Math.round(est.usage / (1024*1024));
     const quotaMB = Math.round(est.quota / (1024*1024));
     dimln("Storage (OPFS): " + usedMB + "MB / " + quotaMB + "MB");
   }
+  dimln("");
 
   await ensureInitialContent();
 

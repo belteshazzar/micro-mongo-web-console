@@ -1,7 +1,7 @@
 import Sval from 'sval';
 import { createConsole } from './console.js';
 import util from 'node-inspect-extracted';
-import * as MicroMongo from 'micro-mongo';
+import * as BabyMongo from 'babymongo/browser';
 
 function buildCommandGlobals(commands){
   if (!commands || typeof commands !== "object") return {};
@@ -26,7 +26,12 @@ export async function createGlobals(ctx) {
 
   const { ansi, println, errorln, dimln, ANSI, OPFS, appManager, term, normalizePath, splitDirFile, refreshDirIndex, appLaunchers, commands } = ctx;
 
-  const client = await MicroMongo.MongoClient.connect('mongodb://localhost:27017');
+  const bridge = await BabyMongo.WorkerBridge.create({
+    workerUrl: "/dist/assets/babymongo-server-worker.js"
+  });
+  const client = await BabyMongo.MongoClient.connect('mongodb://localhost:27017', {
+    workerBridge: bridge
+  });
   const db = client.db('myapp');
 
   return {
@@ -43,7 +48,7 @@ export async function createGlobals(ctx) {
     },
 
     db: db,
-    ObjectId: MicroMongo.ObjectId,
+    ObjectId: BabyMongo.ObjectId,
     // 
     // ANSI helper
     // ANSI: ANSI,
@@ -80,8 +85,8 @@ export class JavaScriptREPL {
     this.globals = globals;
         
     this.interpreter = new Sval({
-      ecmaVersion: 2020,
-      sourceType: 'script',
+      ecmaVersion: 'latest',
+      sourceType: 'module',
       globals: globals
     });
 
@@ -97,20 +102,17 @@ export class JavaScriptREPL {
     if (!trimmed) return;
 
     try {
-      console.log('REPL executing:', trimmed);
       const result = this.interpreter.run(trimmed);
       const value = result && typeof result.then === 'function' ? await result : result;
-      console.log('REPL result:', value);
 
       // Print the result if it's not undefined
       if (value !== undefined) {
-        const output = typeof value === 'string' ? value : util.inspect(value,{depth:0, showHidden: false});
-        this.ctx.println(output);
+        this.globals.console.log(value);
       } else {
         this.ctx.dimln('undefined');
       }
     } catch (e) {
-      this.ctx.errorln('Error: ' + (e.message || String(e)));
+      this.globals.console.error('Error: ' + (e.message || String(e)));
     }
   }
 }
