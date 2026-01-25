@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "postinstall": "find .",
     "build": "vite build",
     "postbuild": "copyfiles -f node_modules/babymongo/dist/* dist/assets/",
     "prepreview": "copyfiles -f node_modules/babymongo/dist/* dist/assets/",
@@ -17,7 +18,7 @@
   },
   "dependencies": {
     "acorn": "^8.14.0",
-    "babymongo": "^0.2.0",
+    "babymongo": "0.2.1",
     "node-inspect-extracted": "github:belteshazzar/node-inspect-extracted",
     "sval": "github:belteshazzar/sval"
   }
