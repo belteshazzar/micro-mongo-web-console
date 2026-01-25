@@ -1,11 +1,10 @@
 {
-  "name": "vite-starter",
+  "name": "babymongo-shell",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "postinstall": "find .",
     "build": "vite build",
     "postbuild": "copyfiles -f node_modules/babymongo/dist/* dist/assets/",
     "prepreview": "copyfiles -f node_modules/babymongo/dist/* dist/assets/",

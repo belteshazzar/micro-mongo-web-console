@@ -931,7 +931,7 @@ async function boot(){
   OPFS.requestPersistence().catch(()=>{});
   const est = await OPFS.estimate();
 
-  ansi(ANSI.brightGreen() + "WebShell" + ANSI.reset() + "\r\n");
+  ansi(ANSI.brightGreen() + "Baby Mongo Shell" + ANSI.reset() + "\r\n");
   dimln("");
   dimln("Try: ls()");
   dimln("     cat(\"readme.txt\")");

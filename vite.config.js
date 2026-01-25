@@ -4,7 +4,7 @@ import commonjs from 'vite-plugin-commonjs';
 
 export default defineConfig({
   // Set base for GitHub Pages project site
-  base: '/babymongo-web-console/',
+  base: '/babymongo-shell/',
   plugins: [
     commonjs(),
   ],
