@@ -110,7 +110,7 @@ async function refreshDirIndex(absPath){
 /********************************************************************
  * Tiny app lifecycle manager + stack (pushApp)
  ********************************************************************/
-var shell = { line:"", cursor:0, history:[], hidx:0, active:true };
+var shell = { line:"", cursor:0, history:[], hidx:0, active:true, buffer:"" };
 
 var appManager = (function(){
   var active = null;
@@ -199,6 +199,9 @@ var appManager = (function(){
     shell.active = true;
     requestAnimationFrame(function(){
       ansi(promptStr());
+      // Initialize the startRow for cursor positioning
+      var b = term.buf();
+      shellDisplayState.startRow = b.cy;
       redrawShellLine();
       kbd.focus();
     });
@@ -310,7 +313,7 @@ var commands = {};
 commands.help = function(){
   println(
     "Commands:\n"+
-    "  help(), ls(), cd(), pwd, mkdir, touch, cat, echo, clear, vim, less, tree, rm, rmdir, du, quota, mongosh, dim\n\n"+
+    "  help(), ls(), cd(), pwd, mkdir, touch, cat, echo, clear, vim, less, tree, rm, rmdir, du, quota, mongosh, dim, history()\n\n"+
     "quota flags:\n"+
     "  --bar=N       set utilization bar width (default 24)\n"+
     "  --no-details  hide per-source breakdown\n"+
@@ -323,6 +326,20 @@ commands.help = function(){
     "Tab completion:\n"+
     "  Tab completes, Tab Tab lists, further Tab cycles\n"
   );
+};
+
+commands.history = function(){
+  if (!shell.history.length) {
+    dimln("(empty)");
+    return;
+  }
+  for (let i = 0; i < shell.history.length; i++) {
+    const entry = shell.history[i];
+    // Show line number and first line (or full command if single line)
+    const firstLine = entry.split('\n')[0];
+    const hasMore = entry.indexOf('\n') !== -1;
+    println((i + 1) + "  " + firstLine + (hasMore ? " ..." : ""));
+  }
 };
 
 commands.clear = function(){
@@ -651,16 +668,141 @@ function promptStr(){
   return "guest@web:" + cwdDisplay() + "$ ";
 }
 
-function redrawShellLine(){
-  ansi("\r" + ANSI.clearLine());
-  ansi(promptStr());
-  ansi(shell.line);
+function continuationPrompt(){
+  const mainPrompt = promptStr();
+  const padding = " ".repeat(Math.max(0, mainPrompt.length - 2)); // -2 for "> "
+  return padding + "> ";
+}
 
-  var b = term.buf();
-  var row = b.cy;
-  var promptLen = promptStr().length;
-  var col = promptLen + shell.cursor;
-  ansi(ANSI.moveTo(row+1, col+1));
+/********************************************************************
+ * Multi-line cursor navigation helpers
+ ********************************************************************/
+function getCursorPosition(text, cursor) {
+  // Convert absolute cursor position to (line, col)
+  const lines = text.split('\n');
+  let pos = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const lineLen = lines[i].length + 1; // +1 for newline
+    if (pos + lineLen > cursor) {
+      return { line: i, col: cursor - pos };
+    }
+    pos += lineLen;
+  }
+  return { line: lines.length - 1, col: lines[lines.length - 1].length };
+}
+
+function getAbsoluteCursor(text, line, col) {
+  // Convert (line, col) to absolute cursor position
+  const lines = text.split('\n');
+  let pos = 0;
+  for (let i = 0; i < line && i < lines.length; i++) {
+    pos += lines[i].length + 1; // +1 for newline
+  }
+  return Math.min(pos + col, text.length);
+}
+
+function isMultiline(text) {
+  return text.indexOf('\n') !== -1;
+}
+
+function debugShellState(action){
+  const pos = getCursorPosition(shell.line, shell.cursor);
+  console.log("[shell debug]", action, {
+    cursor: shell.cursor,
+    line: pos.line,
+    col: pos.col,
+    command: shell.line.replace(/\n/g, "\\n")
+  });
+}
+
+function clearCurrentShellDisplay(){
+  // Clear all lines of the current shell display
+  const lastLineCount = shellDisplayState.lastLineCount || 1;
+  
+  // Move to the start of the first line
+  if (lastLineCount > 1) {
+    ansi(ANSI.up(lastLineCount - 1));
+  }
+  ansi("\r");
+  
+  // Clear each line
+  for (let i = 0; i < lastLineCount; i++) {
+    ansi(ANSI.clearLine());
+    if (i < lastLineCount - 1) {
+      ansi(ANSI.down(1) + "\r");
+    }
+  }
+  
+  // Move back to the start
+  if (lastLineCount > 1) {
+    ansi(ANSI.up(lastLineCount - 1));
+  }
+  ansi("\r");
+}
+
+// Track shell display state
+var shellDisplayState = {
+  lastLine: "",
+  lastBuffer: "",
+  lastCursor: 0,
+  lastLineCount: 0,
+  startRow: 0  // Track the screen row where input starts
+};
+
+function redrawShellLine(){
+  const mainPrompt = promptStr();
+  const contPrompt = continuationPrompt();
+  const cursorPos = getCursorPosition(shell.line, shell.cursor);
+  const lines = shell.line.split('\n');
+  const prompt = shell.buffer ? contPrompt : mainPrompt;
+  const cursorPromptLen = (shell.buffer || cursorPos.line > 0) ? contPrompt.length : mainPrompt.length;
+  
+  const contentChanged = shell.line !== shellDisplayState.lastLine || 
+                         shell.buffer !== shellDisplayState.lastBuffer;
+  
+  if (contentChanged) {
+    // Full redraw: clear old content and redraw everything
+    if (shellDisplayState.lastLineCount > 0) {
+      clearCurrentShellDisplay();
+    } else {
+      ansi("\r" + ANSI.clearLine());
+    }
+    
+    // Remember where we start drawing
+    var b = term.buf();
+    shellDisplayState.startRow = b.cy;
+    
+    // Draw all lines
+    ansi(prompt);
+    for (let i = 0; i < lines.length; i++) {
+      if (i > 0) {
+        ansi("\r\n" + contPrompt);
+      }
+      ansi(lines[i]);
+    }
+    
+    shellDisplayState.lastLine = shell.line;
+    shellDisplayState.lastBuffer = shell.buffer;
+    shellDisplayState.lastLineCount = lines.length;
+  }
+  
+  // Position cursor using absolute positioning from known start row
+  const targetRow = shellDisplayState.startRow + cursorPos.line;
+  const targetCol = cursorPromptLen + cursorPos.col + 1; // +1 for 1-based
+  
+  console.log("[shell debug] positioning cursor", {
+    contentChanged,
+    startRow: shellDisplayState.startRow,
+    cursorLine: cursorPos.line,
+    cursorCol: cursorPos.col,
+    targetRow,
+    targetCol,
+    prompt: cursorPromptLen
+  });
+  
+  ansi(ANSI.moveTo(targetRow + 1, targetCol)); // +1 for 1-based row
+  
+  shellDisplayState.lastCursor = shell.cursor;
 }
 
 async function runShellCommand(line){
@@ -684,22 +826,52 @@ async function runShellCommand(line){
 
 async function commitShellLine(){
   const line = shell.line;
+  
+  // Accumulate line into buffer
+  shell.buffer += (shell.buffer ? "\n" : "") + line;
+  const fullCommand = shell.buffer;
 
+  if (repl && !repl.isCompleteCommand(fullCommand)) {
+    // not a complete command, move to next line for continuation
+    println("");
+    shell.line = "";
+    shell.cursor = 0;
+    shellDisplayState.lastLine = "";
+    shellDisplayState.lastBuffer = "";
+    shellDisplayState.lastLineCount = 0;
+    completer.reset();
+    // Show continuation prompt
+    ansi(continuationPrompt());
+    // Initialize the startRow for the continuation prompt
+    var b = term.buf();
+    shellDisplayState.startRow = b.cy;
+    return;
+  }
+
+  // Complete command - print and execute
   println("");
-  shell.history.push(line);
+  shell.history.push(fullCommand);
   shell.hidx = shell.history.length;
   shell.line = "";
   shell.cursor = 0;
+  shell.buffer = "";
+  shellDisplayState.lastLine = "";
+  shellDisplayState.lastBuffer = "";
+  shellDisplayState.lastCursor = 0;
+  shellDisplayState.lastLineCount = 0;
 
   completer.reset();
   
   // Execute via JavaScript REPL instead of command parsing
   if (repl) {
-    await repl.execute(line);
+    await repl.execute(fullCommand);
   }
 
   if (!appManager.isRunning() && shell.active){
     ansi(promptStr());
+    // Initialize the startRow for the new prompt
+    var b = term.buf();
+    shellDisplayState.startRow = b.cy;
   }
 }
 
@@ -715,7 +887,13 @@ function handleShellKey(e){
 
   if (key !== "Tab") completer.reset();
 
-  if (key === "Enter"){ e.preventDefault(); Promise.resolve().then(commitShellLine); return; }
+  if (key === "Enter") {
+    console.log("Enter pressed");
+    e.preventDefault();
+    //Promise.resolve().then(commitShellLine); 
+    commitShellLine();
+    return; 
+  }
 
   if (key === "Backspace"){
     e.preventDefault();
@@ -727,24 +905,120 @@ function handleShellKey(e){
     return;
   }
 
-  if (key === "ArrowLeft"){ e.preventDefault(); shell.cursor = Math.max(0, shell.cursor-1); redrawShellLine(); return; }
-  if (key === "ArrowRight"){ e.preventDefault(); shell.cursor = Math.min(shell.line.length, shell.cursor+1); redrawShellLine(); return; }
+  if (key === "ArrowLeft"){ 
+    e.preventDefault();
+    if (shell.cursor > 0) {
+      const beforePos = getCursorPosition(shell.line, shell.cursor);
+      const cursorPos = getCursorPosition(shell.line, shell.cursor);
+      const lines = shell.line.split('\n');
+      
+      // If we're at the start of a line (but not the first line), move to end of previous line
+      if (cursorPos.col === 0 && cursorPos.line > 0) {
+        const prevLineLen = lines[cursorPos.line - 1].length;
+        shell.cursor = getAbsoluteCursor(shell.line, cursorPos.line - 1, prevLineLen);
+      } else {
+        // Move left within the current line
+        shell.cursor--;
+      }
+      const afterPos = getCursorPosition(shell.line, shell.cursor);
+      if (afterPos.line !== beforePos.line) {
+        // Force full redraw when crossing lines to keep cursor row aligned
+        shellDisplayState.lastLine = "";
+      }
+      debugShellState("arrow-left");
+      redrawShellLine();
+    }
+    return; 
+  }
+  
+  if (key === "ArrowRight"){ 
+    e.preventDefault();
+    if (shell.cursor < shell.line.length) {
+      const beforePos = getCursorPosition(shell.line, shell.cursor);
+      const cursorPos = getCursorPosition(shell.line, shell.cursor);
+      const lines = shell.line.split('\n');
+      const currentLineLen = lines[cursorPos.line].length;
+      
+      // If we're at the end of a line (but not the last line), move to start of next line
+      if (cursorPos.col === currentLineLen && cursorPos.line < lines.length - 1) {
+        shell.cursor = getAbsoluteCursor(shell.line, cursorPos.line + 1, 0);
+      } else {
+        // Move right within the current line
+        shell.cursor++;
+      }
+      const afterPos = getCursorPosition(shell.line, shell.cursor);
+      if (afterPos.line !== beforePos.line) {
+        // Force full redraw when crossing lines to keep cursor row aligned
+        shellDisplayState.lastLine = "";
+      }
+      debugShellState("arrow-right");
+      redrawShellLine();
+    }
+    return; 
+  }
 
   if (key === "ArrowUp"){
     e.preventDefault();
+    
+    // If current line is multi-line, move up within the text
+    if (isMultiline(shell.line)) {
+      const cursorPos = getCursorPosition(shell.line, shell.cursor);
+      if (cursorPos.line > 0) {
+        // Move to same column in previous line
+        const lines = shell.line.split('\n');
+        const prevLineLen = lines[cursorPos.line - 1].length;
+        const newCol = Math.min(cursorPos.col, prevLineLen);
+        shell.cursor = getAbsoluteCursor(shell.line, cursorPos.line - 1, newCol);
+        debugShellState("arrow-up (in-line)");
+        redrawShellLine();
+        return;
+      }
+      // At top line of multi-line content, allow history navigation
+    }
+    
+    // Navigate history
     if (!shell.history.length) return;
     shell.hidx = Math.max(0, shell.hidx-1);
     shell.line = shell.history[shell.hidx] || "";
     shell.cursor = shell.line.length;
+    shell.buffer = ""; // reset buffer when navigating history
+    shellDisplayState.lastLine = "";
+    shellDisplayState.lastBuffer = "";
+    shellDisplayState.lastLineCount = 0; // force full clear
+    debugShellState("history-up");
     redrawShellLine();
     return;
   }
+  
   if (key === "ArrowDown"){
     e.preventDefault();
+    
+    // If current line is multi-line, move down within the text
+    if (isMultiline(shell.line)) {
+      const cursorPos = getCursorPosition(shell.line, shell.cursor);
+      const lines = shell.line.split('\n');
+      if (cursorPos.line < lines.length - 1) {
+        // Move to same column in next line
+        const nextLineLen = lines[cursorPos.line + 1].length;
+        const newCol = Math.min(cursorPos.col, nextLineLen);
+        shell.cursor = getAbsoluteCursor(shell.line, cursorPos.line + 1, newCol);
+        debugShellState("arrow-down (in-line)");
+        redrawShellLine();
+        return;
+      }
+      // At bottom line of multi-line content, allow history navigation
+    }
+    
+    // Navigate history
     if (!shell.history.length) return;
     shell.hidx = Math.min(shell.history.length, shell.hidx+1);
     shell.line = (shell.hidx === shell.history.length) ? "" : (shell.history[shell.hidx] || "");
     shell.cursor = shell.line.length;
+    shell.buffer = ""; // reset buffer when navigating history
+    shellDisplayState.lastLine = "";
+    shellDisplayState.lastBuffer = "";
+    shellDisplayState.lastLineCount = 0; // force full clear
+    debugShellState("history-down");
     redrawShellLine();
     return;
   }
@@ -920,6 +1194,9 @@ async function boot(){
   if (!__opfsRoot){
     errorln("OPFS not available in this context (secure context & supported browser required).");
     ansi(promptStr());
+    // Initialize the startRow for cursor positioning
+    var b = term.buf();
+    shellDisplayState.startRow = b.cy;
     shell.line = ""; shell.cursor = 0;
     shell.active = true;
     kbd.focus();
@@ -957,6 +1234,9 @@ async function boot(){
   await initREPL();
 
   ansi(promptStr());
+  // Initialize the startRow for cursor positioning
+  var b = term.buf();
+  shellDisplayState.startRow = b.cy;
   shell.line = ""; shell.cursor = 0;
   shell.active = true;
   kbd.focus();

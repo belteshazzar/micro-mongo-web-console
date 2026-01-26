@@ -27,7 +27,7 @@ export async function createGlobals(ctx) {
   const { ansi, println, errorln, dimln, ANSI, OPFS, appManager, term, normalizePath, splitDirFile, refreshDirIndex, appLaunchers, commands } = ctx;
 
   const bridge = await BabyMongo.WorkerBridge.create({
-    workerUrl: "/babymongo-shell/assets/babymongo-server-worker.js"
+    workerUrl: "/babymongo-shell/dist/assets/babymongo-server-worker.js"
   });
   const client = await BabyMongo.MongoClient.connect('mongodb://localhost:27017', {
     workerBridge: bridge
@@ -75,6 +75,8 @@ export async function createGlobals(ctx) {
   };
 }
 
+const ERROR_LINE_REGEX = /(?<msg>[^(]+)\((?<line>[0-9]+):(?<column>[0-9]+)\)/;
+const ERROR_KEYWORD_REGEX = /The keyword '(?<keyword>\w+)' is reserved/;
 /**
  * JavaScript REPL using sval for execution.
  * Exposes app functions and shell utilities in the global scope.
@@ -92,6 +94,64 @@ export class JavaScriptREPL {
 
   }
 
+  isCompleteCommand(code) {
+    const trimmed = (code || '').trim();
+    if (!trimmed) return true;
+
+    try {
+      this.interpreter.parse(trimmed);
+      // Successfully parsed - command is complete
+      return true;
+    } catch (parseError) {
+      const errorMsg = parseError.message || '';
+      
+      // Check if the error occurs at or near the end of input (suggesting incomplete code)
+      const match = ERROR_LINE_REGEX.exec(errorMsg);
+      
+      if (!match) {
+        // If we can't parse the error message format, assume incomplete
+        return false;
+      }
+
+      let lines = trimmed.split('\n');
+      
+      const lineNum = parseInt(match.groups.line, 10);
+
+      if (lineNum != lines.length) {
+        // Error not on the last line - likely a real syntax error
+        return true;
+      }
+
+      const lastLine = lines[lines.length - 1];
+      const column = parseInt(match.groups.column, 10);
+      const msg = match.groups.msg;
+      
+      // Error at the end of input typically means incomplete
+      if (msg === 'Unexpected token ' && column >= lastLine.length) {
+        return false;
+      }
+      
+      // Check for incomplete keyword
+      if (msg.startsWith('The keyword')) {
+        const keywordMatch = ERROR_KEYWORD_REGEX.exec(msg);
+        if (keywordMatch) {
+          const keyword = keywordMatch.groups.keyword;
+          if (column + keyword.length >= lastLine.length) {
+            return false;
+          }
+        }
+      }
+      
+      // Check for common incomplete patterns
+      if (msg.includes('Unterminated') || msg.includes('unexpected end')) {
+        return false;
+      }
+      
+      // Error in the middle of input - likely a real syntax error
+      return true;
+    }
+  }
+
   /**
    * Execute a line of JavaScript code.
    * @param {string} code - JavaScript code to execute
@@ -99,7 +159,13 @@ export class JavaScriptREPL {
    */
   async execute(code) {
     const trimmed = (code || '').trim();
-    if (!trimmed) return;
+    if (!trimmed) return true;
+
+    // Validate that code is complete before executing
+    if (!this.isCompleteCommand(trimmed)) {
+      // This shouldn't happen if commitShellLine is working correctly
+      return false;
+    }
 
     try {
       const result = this.interpreter.run(trimmed);
@@ -114,5 +180,7 @@ export class JavaScriptREPL {
     } catch (e) {
       this.globals.console.error('Error: ' + (e.message || String(e)));
     }
+
+    return true;
   }
 }
